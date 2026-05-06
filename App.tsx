@@ -29,6 +29,8 @@ import MapScreen from './src/screens/MapScreen';
 import MyCommunityScreen from './src/screens/MyCommunityScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import HelpCenterScreen from './src/screens/HelpCenterScreen';
+import ErrorBoundary from './src/components/ErrorBoundary';
+import { useNetworkStatus } from './src/hooks/useNetworkStatus';
 
 interface FilterData {
   ageGroup: string;
@@ -93,12 +95,17 @@ const placeholder = StyleSheet.create({
 
 // ─── 메인 App ─────────────────────────────────────────────────────────────
 export default function App() {
+  useNetworkStatus(); // 네트워크 감지 활성화
   const { isLoggedIn, setTokens, logout } = useAuthStore();
   const { childProfile, setChildProfile, clearChildProfile } = useProfileStore();
   const { setRegion } = useRecommendFilterStore();
 
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
-  const [filterData, setFilterData] = useState<FilterData | null>(null);
+  const [filterData, setFilterData] = useState<FilterData | null>({
+  ageGroup: '', region: '강남구', budget: '월 15만원 이하',
+  travelMode: '', travelTime: '', onlineOption: '',
+  classType: '', concerns: [], subjectDetails: [],
+});
 
   const handleSplashFinish = () => {
     if (!isLoggedIn) {
@@ -126,6 +133,7 @@ export default function App() {
   const [editUserName, setEditUserName] = useState<string>('');
 
   return (
+    <ErrorBoundary>
     <SafeAreaProvider>
       <View style={styles.root}>
 
@@ -159,6 +167,7 @@ export default function App() {
             <Text style={styles.devBtnText}>초기화 후 스플래시 다시보기</Text>
           </TouchableOpacity>
         </View>
+        
 
         {/* ── 화면 ── */}
         {currentScreen === 'splash' && (
@@ -422,6 +431,7 @@ onNavigate={(screen) => {
 
       </View>
     </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
 
