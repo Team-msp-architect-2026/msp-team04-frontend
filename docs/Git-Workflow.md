@@ -15,27 +15,42 @@ MoMent 프로젝트의 Git 작업 흐름을 통일하여
 |---|---|---|
 | `main` | 프로덕션 배포용 | 실제 배포 기준 브랜치 |
 | `develop` | 통합 개발 브랜치 | 기능 개발 완료 후 통합되는 브랜치 |
-| `feature/{이슈번호}-{설명}` | 기능 개발 | 신규 기능 개발 작업 |
-| `fix/{이슈번호}-{설명}` | 버그 수정 | 기능 오류 및 버그 수정 |
-| `hotfix/{설명}` | 긴급 수정 | main 기준 긴급 장애 대응 |
+| `feature/{기능명}` | 기능 개발 | 신규 기능 개발 작업 |
+| `fix/{버그명}` | 버그 수정 | 기능 오류 및 버그 수정 |
+| `docs/{문서명}` | 문서 작업 | README, Wiki, 설계 문서 등 문서 작업 |
+| `hotfix/{긴급수정명}` | 긴급 수정 | main 기준 긴급 장애 대응 |
 
 ---
 
 ## 3. 브랜치 네이밍 규칙
 
+브랜치명은 기능 또는 작업 목적이 바로 드러나도록 작성한다.  
+이슈번호는 브랜치명에 넣지 않고, PR 제목 / PR 본문 / 커밋 메시지에서 연결한다.
+
+---
+
 ## 3.1 기능 개발 브랜치
 
 ```bash
-feature/{이슈번호}-{설명}
+feature/{기능명}
 ```
 
 예시:
 
 ```bash
-feature/83-git-convention
-feature/84-backend-init
-feature/95-flyway-init
-feature/101-payment-flow-wiki
+feature/auth
+feature/child-profile
+feature/recommendation
+feature/program
+feature/application
+feature/payment
+feature/community
+feature/review
+feature/bookmark
+feature/search
+feature/notification
+feature/upload
+feature/flyway
 ```
 
 ---
@@ -43,22 +58,43 @@ feature/101-payment-flow-wiki
 ## 3.2 버그 수정 브랜치
 
 ```bash
-fix/{이슈번호}-{설명}
+fix/{버그명}
 ```
 
 예시:
 
 ```bash
-fix/120-login-token-error
-fix/121-payment-status-error
+fix/auth-token
+fix/payment-status
+fix/redis-lock
+fix/flyway-migration
+fix/swagger-config
 ```
 
 ---
 
-## 3.3 긴급 수정 브랜치
+## 3.3 문서 작업 브랜치
 
 ```bash
-hotfix/{설명}
+docs/{문서명}
+```
+
+예시:
+
+```bash
+docs/git-workflow
+docs/api-spec
+docs/erd
+docs/readme
+docs/wiki
+```
+
+---
+
+## 3.4 긴급 수정 브랜치
+
+```bash
+hotfix/{긴급수정명}
 ```
 
 예시:
@@ -66,6 +102,7 @@ hotfix/{설명}
 ```bash
 hotfix/prod-health-check
 hotfix/payment-callback-error
+hotfix/security-config
 ```
 
 ---
@@ -74,40 +111,88 @@ hotfix/payment-callback-error
 
 ## 4.1 develop 브랜치 최신화
 
+모든 기능 개발은 `develop` 브랜치를 기준으로 시작한다.
+
 ```bash
 git checkout develop
 git pull origin develop
 ```
 
+---
+
 ## 4.2 작업 브랜치 생성
 
 ```bash
-git checkout -b feature/{이슈번호}-{설명}
+git checkout -b feature/{기능명}
 ```
 
 예시:
 
 ```bash
-git checkout -b feature/83-git-convention
+git checkout -b feature/auth
+git checkout -b feature/payment
+git checkout -b feature/community
 ```
+
+문서 작업인 경우:
+
+```bash
+git checkout -b docs/git-workflow
+```
+
+버그 수정인 경우:
+
+```bash
+git checkout -b fix/payment-status
+```
+
+---
 
 ## 4.3 작업 후 커밋
 
+커밋 메시지에는 반드시 관련 이슈번호를 포함한다.
+
 ```bash
 git add .
-git commit -m "docs: Git 브랜치 전략 및 커밋 컨벤션 문서화 (#83)"
+git commit -m "type: 작업 내용 (#이슈번호)"
 ```
+
+예시:
+
+```bash
+feat: 카카오 OAuth 로그인 API 추가 (#5)
+feat: 자녀 프로필 CRUD API 구현 (#9)
+feat: 선착순 신청 API 구현 (#16)
+fix: 결제 상태 업데이트 오류 수정 (#17)
+docs: Git 브랜치 전략 문서 수정 (#83)
+chore: 로컬 설정 민감 기본값 제거 (#84)
+```
+
+---
 
 ## 4.4 원격 브랜치 push
 
 ```bash
-git push -u origin feature/83-git-convention
+git push -u origin feature/{기능명}
 ```
+
+예시:
+
+```bash
+git push -u origin feature/auth
+git push -u origin feature/payment
+git push -u origin docs/git-workflow
+```
+
+---
 
 ## 4.5 Pull Request 생성
 
 - base branch: `develop`
-- compare branch: `feature/{이슈번호}-{설명}`
+- compare branch: 작업 브랜치
+    - 예: `feature/auth`
+    - 예: `feature/payment`
+    - 예: `docs/git-workflow`
 - PR 템플릿 작성
 - 관련 이슈 연결
 - 리뷰어 1명 이상 지정
@@ -134,6 +219,8 @@ git push -u origin feature/83-git-convention
 
 ## 5.2 PR 제목 규칙
 
+PR 제목에는 관련 이슈번호를 포함한다.
+
 ```bash
 [#이슈번호] 작업 요약
 ```
@@ -141,14 +228,39 @@ git push -u origin feature/83-git-convention
 예시:
 
 ```bash
-[#83] Git 브랜치 전략 및 PR 템플릿 추가
+[#83] 브랜치 전략 / PR 규칙 / 커밋 컨벤션 문서화
+[#84] 로컬 설정 민감 기본값 제거
 [#95] Flyway 초기 마이그레이션 설정
-[#12] 추천 엔진 API 구현
+[#16] 선착순 신청 API 구현
 ```
 
 ---
 
-## 5.3 PR 머지 조건
+## 5.3 PR 본문 이슈 연결 규칙
+
+PR 본문에는 관련 이슈를 반드시 연결한다.
+
+진행 중인 이슈를 참조만 할 경우:
+
+```md
+refs #83
+```
+
+해당 PR 머지로 이슈를 완료 처리할 경우:
+
+```md
+close #83
+```
+
+또는:
+
+```md
+resolve #83
+```
+
+---
+
+## 5.4 PR 머지 조건
 
 PR은 아래 조건을 모두 만족해야 머지할 수 있다.
 
@@ -160,7 +272,7 @@ PR은 아래 조건을 모두 만족해야 머지할 수 있다.
 
 ---
 
-## 5.4 리뷰어 지정 규칙
+## 5.5 리뷰어 지정 규칙
 
 - 본인이 작업한 PR은 본인이 직접 머지하지 않는다.
 - 최소 1명 이상 리뷰어를 지정한다.
@@ -180,9 +292,11 @@ type: 작업 내용 (#이슈번호)
 예시:
 
 ```bash
-feat: 카카오 OAuth 로그인 API 추가 (#12)
+feat: 카카오 OAuth 로그인 API 추가 (#5)
+feat: 자녀 프로필 CRUD API 구현 (#9)
+feat: 추천 엔진 API 구현 (#10)
 fix: 결제 승인 상태 업데이트 오류 수정 (#17)
-docs: Git 브랜치 전략 문서 추가 (#83)
+docs: Git 브랜치 전략 문서 수정 (#83)
 chore: 프로젝트 기본 설정 추가 (#84)
 ```
 
@@ -202,21 +316,17 @@ chore: 프로젝트 기본 설정 추가 (#84)
 
 ---
 
-## 7. 이슈 연결 규칙
+## 7. 브랜치명과 이슈번호 관리 방식
 
-PR 본문에는 관련 이슈를 반드시 연결한다.
+브랜치명에는 이슈번호를 넣지 않는다.
 
-```md
-close #83
-```
+대신 아래 위치에서 이슈번호를 관리한다.
 
-또는
-
-```md
-resolve #83
-```
-
-해당 PR이 머지되면 연결된 이슈가 자동으로 종료된다.
+| 위치 | 예시 |
+|---|---|
+| PR 제목 | `[#16] 선착순 신청 API 구현` |
+| PR 본문 | `refs #16` 또는 `close #16` |
+| 커밋 메시지 | `feat: 선착순 신청 API 구현 (#16)` |
 
 ---
 
@@ -240,11 +350,13 @@ resolve #83
 - 자녀 프로필 CRUD 1개
 - Flyway 마이그레이션 1개
 - 문서 수정 1개
+- 설정 변경 1개
 
 나쁜 PR 단위:
 
 - 로그인 + 추천 + 결제 + 문서 수정 한 번에 포함
 - 백엔드 + 프론트 + 인프라를 한 PR에 모두 포함
+- 여러 이슈를 한 PR에 모두 포함
 
 ---
 
@@ -268,15 +380,18 @@ resolve #83
 git checkout develop
 git pull origin develop
 
-git checkout -b feature/{이슈번호}-{설명}
+git checkout -b feature/{기능명}
 
 # 작업 진행
 
 git add .
 git commit -m "type: 작업 내용 (#이슈번호)"
 
-git push -u origin feature/{이슈번호}-{설명}
+git push -u origin feature/{기능명}
 
 # GitHub에서 PR 생성
+# base: develop
+# compare: feature/{기능명}
+# PR 제목과 본문에 이슈번호 연결
 # 리뷰 승인 + CI 통과 후 develop 머지
 ```
