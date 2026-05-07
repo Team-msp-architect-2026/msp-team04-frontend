@@ -39,7 +39,7 @@ import SearchScreen from './src/screens/search/SearchScreen';
 import { useAuthStore, useProfileStore, useRecommendFilterStore } from './src/store';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
-
+import BenefitScreen from './src/screens/BenefitScreen';
 
 interface FilterData {
   ageGroup: string;
@@ -78,6 +78,7 @@ type Screen =
   | 'myCommunity'
   | 'settings'
   | 'help'
+  | 'benefit' 
 
 // ─── 임시 아이 정보 등록 화면 (CHD-001 구현 전까지) ──────────────────────
 function ChildPlaceholderScreen({ onNext }: { onNext: () => void }) {
@@ -215,9 +216,11 @@ export default function App() {
             onTabChange={(tab) => setCurrentScreen(tab as Screen)}
             onRecommendClick={() => setCurrentScreen('recommend')}
             onRegisterChild={() => setCurrentScreen('child')}
+            onEditChild={() => setCurrentScreen('child')}
             onNotificationClick={() => setCurrentScreen('notification')}
             onMapClick={() => setCurrentScreen('map')}
-            onSupportClick={() => setCurrentScreen('aiReport')}
+            onSupportClick={() => setCurrentScreen('benefit')}
+            onAiReportClick={() => setCurrentScreen('aiReport')} 
             onSearchClick={() => setCurrentScreen('search')} 
           />
         )}
@@ -435,6 +438,22 @@ onNavigate={(screen) => {
 {currentScreen === 'help' && (
   <HelpCenterScreen
     onBack={() => setCurrentScreen('my')}
+  />
+)}
+
+{currentScreen === 'benefit' && (
+  <BenefitScreen
+    userName="정아름"
+    childName={childProfile?.name}
+    childAge={childProfile?.age}
+    childRegion="서울 강동구"
+    hasChildInfo={!!childProfile}
+    onBack={() => setCurrentScreen('home')}
+    onRegisterChild={() => setCurrentScreen('child')}
+    onNotificationClick={() => setCurrentScreen('notification')}
+    onGoRecommendation={() => setCurrentScreen('recommendation')}
+    onGoNotificationSettings={() => setCurrentScreen('notificationSettings')}
+    onGoMap={() => setCurrentScreen('map')}
   />
 )}
 

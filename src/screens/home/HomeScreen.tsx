@@ -29,6 +29,7 @@ interface HomeScreenProps {
   onEditChild?: () => void;
   onMapClick?: () => void;
   onSupportClick?: () => void;
+  onAiReportClick?: () => void;
   onSearchClick?: () => void;
   onNotificationClick?: () => void;
 }
@@ -131,6 +132,7 @@ export default function HomeScreen({
   hasChildInfo, childInfo, onRegisterChild,
   onEditChild, onMapClick, onSupportClick,
   onSearchClick, onNotificationClick,
+  onAiReportClick,
 }: HomeScreenProps) {
   const insets = useSafeAreaInsets();
 
@@ -211,10 +213,17 @@ export default function HomeScreen({
                   </View>
                 </View>
                 {onEditChild && (
-                  <TouchableOpacity onPress={onEditChild} style={{ padding: 4 }}>
-                    <Ionicons name="pencil" size={15} color="#bbb" />
-                  </TouchableOpacity>
-                )}
+  <TouchableOpacity
+    onPress={onEditChild}
+    style={{
+      width: 32, height: 32, borderRadius: 16,
+      backgroundColor: '#F3F4F6',
+      alignItems: 'center', justifyContent: 'center',
+    }}
+  >
+    <Ionicons name="pencil" size={16} color="#9CA3AF" />
+  </TouchableOpacity>
+)}
               </View>
             )}
           </>
@@ -229,7 +238,7 @@ export default function HomeScreen({
           {childInfo && (
             <View style={styles.mainGrid}>
               {/* 왼쪽 큰 카드 */}
-              <TouchableOpacity style={styles.bigCard} onPress={onSupportClick} activeOpacity={0.85}>
+              <TouchableOpacity style={styles.bigCard} onPress={onAiReportClick} activeOpacity={0.85}>
                 <LinearGradient
                   colors={['#e6f5ff', '#FFFFFF']}
                   start={{ x: 0, y: 0 }}
