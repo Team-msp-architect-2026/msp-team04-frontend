@@ -17,7 +17,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../../assets/moment-splash.png')}
+        source={require('../../../assets/moment-splash.png')}
         style={styles.logo}
         resizeMode="contain"
       />
