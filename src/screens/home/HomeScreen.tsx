@@ -4,10 +4,11 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, StatusBar, Image,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography } from '../../constants';
 import { LinearGradient } from 'expo-linear-gradient';
+import CommonHeader from '../../components/CommonHeader';
+
 
 // ─────────────────────────────────────────────
 // 타입
@@ -135,27 +136,19 @@ export default function HomeScreen({
   onSearchClick, onNotificationClick,
   onAiReportClick,
 }: HomeScreenProps) {
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* ── 헤더 ── */}
-      <View style={styles.header}>
-        <Text style={styles.logo}>MoMent</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconBtn} onPress={onSearchClick}>
-            <Ionicons name="search" size={22} color="#555" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={onNotificationClick}>
-            <Ionicons name="notifications" size={22} color="#555" />
-            <View style={styles.notiBadge} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <CommonHeader
+        variant="home"
+        unreadCount={3}
+        onSearchPress={onSearchClick}
+        onNotificationPress={onNotificationClick}
+      />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+
 
         {/* ══ 미등록 상태 ══ */}
         {!hasChildInfo ? (

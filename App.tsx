@@ -183,6 +183,8 @@ export default function App() {
         {currentScreen === 'splash' && (
           <SplashScreen onFinish={handleSplashFinish} />
         )}
+        
+        
 
         {currentScreen === 'login' && (
           <LoginScreen onLoginSuccess={handleLoginSuccess} />
@@ -292,9 +294,12 @@ onNavigate={(screen) => {
 />
         )}
 
+
 {currentScreen === 'apply' && (
   <ApplyScreen
     onTabChange={(tab) => setCurrentScreen(tab as Screen)}
+    onSearchClick={() => setCurrentScreen('search')}
+    onNotificationClick={() => setCurrentScreen('notification')}
   />
 )}
 
@@ -306,6 +311,8 @@ onNavigate={(screen) => {
       setCurrentScreen('communityPost');
     }}
     onWriteClick={() => setCurrentScreen('communityWrite')}
+    onSearchClick={() => setCurrentScreen('search')}
+    onNotificationClick={() => setCurrentScreen('notification')}
   />
 )}
 
