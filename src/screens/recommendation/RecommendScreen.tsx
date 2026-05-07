@@ -8,7 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '../constants';
+import { colors } from '../../constants';
 
 export interface FilterData {
   ageGroup: string;

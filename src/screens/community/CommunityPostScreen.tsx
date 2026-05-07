@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../constants';
+import { colors } from '../../constants';
 import type { Post } from './CommunityScreen';
 
 interface Comment {

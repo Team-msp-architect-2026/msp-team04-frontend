@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
-import { colors } from '../constants';
+import { colors } from '../../constants';
 
 const KAKAO_JS_KEY = '260b293407a3946a42717dad31416426';
 

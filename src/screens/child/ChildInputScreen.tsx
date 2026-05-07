@@ -8,8 +8,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing, typography } from '../constants';
-import StepIndicator from '../components/StepIndicator';
+import { colors, spacing, typography } from '../../constants';
+import StepIndicator from '../../components/StepIndicator';
 
 export interface ChildFormData {
   childName: string;
