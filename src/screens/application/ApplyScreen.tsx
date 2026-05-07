@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import BottomTabBar from '../../components/BottomTabBar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../constants';
@@ -55,7 +56,7 @@ export default function ApplyScreen({ onTabChange }: ApplyScreenProps) {
     : AVAILABLE_PROGRAMS;
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={s.root} edges={['top']}>
       {/* 헤더 */}
       <View style={s.header}>
         <Text style={s.logo}>MoMent</Text>
@@ -147,27 +148,8 @@ export default function ApplyScreen({ onTabChange }: ApplyScreenProps) {
         </View>
       </ScrollView>
 
-      {/* 하단 탭 */}
-      <View style={s.bottomTab}>
-        {[
-          { key: 'home', icon: 'home', label: '홈' },
-          { key: 'recommend', icon: 'sparkles', label: '추천' },
-          { key: 'apply', icon: 'document-text', label: '신청' },
-          { key: 'community', icon: 'chatbubbles', label: '커뮤니티' },
-          { key: 'my', icon: 'person', label: '마이' },
-        ].map(tab => (
-          <TouchableOpacity key={tab.key} style={s.tabItem} onPress={() => onTabChange(tab.key)}>
-            <Ionicons
-              name={tab.icon as any}
-              size={22}
-              color={tab.key === 'apply' ? colors.primary.default : '#aaa'}
-            />
-            <Text style={[s.tabLabel, tab.key === 'apply' && s.tabLabelActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <BottomTabBar activeTab="apply" onTabChange={onTabChange} />
+            
     </SafeAreaView>
   );
 }

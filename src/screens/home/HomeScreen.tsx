@@ -1,4 +1,5 @@
 import React from 'react';
+import BottomTabBar from '../../components/BottomTabBar';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, StatusBar, Image,
@@ -472,31 +473,10 @@ export default function HomeScreen({
 
       </ScrollView>
 
-      {/* ── 하단 탭 ── */}
-      <View style={[styles.bottomTab, { paddingBottom: insets.bottom }]}>
-        {[
-          { key: 'home',      icon: 'home' as const,          label: '홈' },
-          { key: 'recommend', icon: 'sparkles' as const,      label: '추천' },
-          { key: 'apply',     icon: 'document-text' as const, label: '신청' },
-          { key: 'community', icon: 'chatbubbles' as const,   label: '커뮤니티' },
-          { key: 'my',        icon: 'person' as const,        label: '마이' },
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={styles.tabItem}
-            onPress={() => onTabChange(tab.key)}
-          >
-            <Ionicons
-              name={tab.icon}
-              size={22}
-              color={tab.key === 'home' ? '#FFD93D' : '#aaa'}
-            />
-            <Text style={[styles.tabLabel, tab.key === 'home' && styles.tabLabelActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <BottomTabBar activeTab="home" onTabChange={onTabChange} />
+
+
+      
     </View>
   );
 }

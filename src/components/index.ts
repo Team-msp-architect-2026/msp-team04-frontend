@@ -4,3 +4,4 @@ export { default as FilterChip } from './FilterChip';
 export { default as ProgressBar } from './ProgressBar';
 export { default as StepIndicator } from './StepIndicator';
 export { default as BottomButton } from './BottomButton';
+export { default as BottomTabBar } from './BottomTabBar';
