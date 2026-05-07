@@ -85,7 +85,7 @@ const supportBenefits = [
 function ChildImagePlaceholder({ size = 50 }: { size?: number }) {
   return (
     <Image
-      source={require('../../assets/moment-splash.png')}
+      source={require('../../../assets/moment-splash.png')}
       style={{ width: size, height: size, borderRadius: size / 4 }}
     />
   );
@@ -94,7 +94,7 @@ function ChildImagePlaceholder({ size = 50 }: { size?: number }) {
 function AIImagePlaceholder() {
   return (
     <Image
-      source={require('../../assets/momentAiCharater.png')}
+      source={require('../../../assets/momentAiCharater.png')}
       style={styles.aiRobotImage}
       resizeMode="contain"
     />
@@ -104,7 +104,7 @@ function AIImagePlaceholder() {
 function RecommendImage() {
   return (
     <Image
-      source={require('../../assets/recommend-crayon.png')}
+      source={require('../../../assets/recommend-crayon.png')}
       style={styles.smallCardImage}
       resizeMode="contain"
     />
@@ -114,7 +114,7 @@ function RecommendImage() {
 function ApplyImage() {
   return (
     <Image
-      source={require('../../assets/apply-checklist.png')}
+      source={require('../../../assets/apply-checklist.png')}
       style={styles.smallCardImage}
       resizeMode="contain"
     />
@@ -167,7 +167,7 @@ export default function HomeScreen({
                 </Text>
               </View>
               <Image
-                source={require('../../assets/character2.png')}
+                source={require('../../../assets/character2.png')}
                 style={styles.heroCharacterImage}
                 resizeMode="contain"
               />
@@ -270,9 +270,9 @@ export default function HomeScreen({
 
             <View style={styles.serviceRow}>
               {[
-                { image: require('../../assets/map-pin.png'),  label: '내 주변\n찾기',       action: onMapClick },
-                { image: require('../../assets/wallet.png'),   label: '지원금\n확인',        action: onSupportClick },
-                { image: require('../../assets/post-it.png'),  label: '무료·공공\n프로그램', action: () => {} },
+                { image: require('../../../assets/map-pin.png'),  label: '내 주변\n찾기',       action: onMapClick },
+                { image: require('../../../assets/wallet.png'),   label: '지원금\n확인',        action: onSupportClick },
+                { image: require('../../../assets/post-it.png'),  label: '무료·공공\n프로그램', action: () => {} },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.label}
