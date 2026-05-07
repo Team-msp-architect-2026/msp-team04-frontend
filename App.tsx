@@ -2,35 +2,44 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import SplashScreen from './src/screens/SplashScreen';
-import LoginScreen from './src/screens/LoginScreen';
-import HomeScreen from './src/screens/HomeScreen';
+import SplashScreen from './src/screens/home/SplashScreen';
+import LoginScreen from './src/screens/auth/LoginScreen';
+import HomeScreen from './src/screens/home/HomeScreen';
+import ChildInputScreen from './src/screens/child/ChildInputScreen';
+
+import RecommendScreen from './src/screens/recommendation/RecommendScreen';
+import RecommendationScreen from './src/screens/recommendation/RecommendationScreen';
+import AiReportScreen from './src/screens/recommendation/AiReportScreen';
+
+import ProgramDetailScreen from './src/screens/program/ProgramDetailScreen';
+import type { ProgramDetail } from './src/screens/program/ProgramDetailScreen';
+import MapScreen from './src/screens/program/MapScreen';
+
+import ApplyScreen from './src/screens/application/ApplyScreen';
+import PaymentScreen from './src/screens/application/PaymentScreen';
+import MyApplicationsScreen from './src/screens/application/MyApplicationsScreen';
+
+import CommunityScreen from './src/screens/community/CommunityScreen';
+import type { Post } from './src/screens/community/CommunityScreen';
+import CommunityWriteScreen from './src/screens/community/CommunityWriteScreen';
+import CommunityPostScreen from './src/screens/community/CommunityPostScreen';
+import MyCommunityScreen from './src/screens/community/MyCommunityScreen';
+
+import MyPageScreen from './src/screens/mypage/MyPageScreen';
+import ProfileEditScreen from './src/screens/mypage/ProfileEditScreen';
+import SavedListScreen from './src/screens/mypage/SavedListScreen';
+import SettingsScreen from './src/screens/mypage/SettingsScreen';
+import HelpCenterScreen from './src/screens/mypage/HelpCenterScreen';
+
+import NotificationScreen from './src/screens/notification/NotificationScreen';
+import NotificationSettingsScreen from './src/screens/notification/NotificationSettingsScreen';
+
+import SearchScreen from './src/screens/search/SearchScreen';
+
 import { useAuthStore, useProfileStore, useRecommendFilterStore } from './src/store';
-import ChildInputScreen from './src/screens/ChildInputScreen';
-import RecommendScreen from './src/screens/RecommendScreen';
-import RecommendationScreen from './src/screens/RecommendationScreen';
-import MyPageScreen from './src/screens/MyPageScreen';
-import CommunityScreen from './src/screens/CommunityScreen';
-import ApplyScreen from './src/screens/ApplyScreen';
-import CommunityWriteScreen from './src/screens/CommunityWriteScreen';
-import CommunityPostScreen from './src/screens/CommunityPostScreen';
-import type { Post } from './src/screens/CommunityScreen';
-import ProgramDetailScreen from './src/screens/ProgramDetailScreen';
-import type { ProgramDetail } from './src/screens/ProgramDetailScreen';
-import NotificationScreen from './src/screens/NotificationScreen';
-import NotificationSettingsScreen from './src/screens/NotificationSettingsScreen';
-import ProfileEditScreen from './src/screens/ProfileEditScreen';
-import MyApplicationsScreen from './src/screens/MyApplicationsScreen';
-import AiReportScreen from './src/screens/AiReportScreen';
-import SearchScreen from './src/screens/SearchScreen';
-import PaymentScreen from './src/screens/PaymentScreen';
-import SavedListScreen from './src/screens/SavedListScreen';
-import MapScreen from './src/screens/MapScreen';
-import MyCommunityScreen from './src/screens/MyCommunityScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
-import HelpCenterScreen from './src/screens/HelpCenterScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
+
 
 interface FilterData {
   ageGroup: string;

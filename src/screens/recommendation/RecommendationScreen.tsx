@@ -8,8 +8,8 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '../constants';
-import type { ProgramDetail } from './ProgramDetailScreen';
+import { colors } from '../../constants';
+import type { ProgramDetail } from '../program/ProgramDetailScreen';
 
 export interface ChildFormData {
   childName: string;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors, spacing, typography } from '../constants';
+import { colors, spacing, typography } from '../../constants';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;

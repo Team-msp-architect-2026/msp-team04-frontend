@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../constants';
-import type { ProgramDetail } from './ProgramDetailScreen';
+import { colors } from '../../constants';
+import type { ProgramDetail } from '../program/ProgramDetailScreen';
 
 interface PaymentScreenProps {
   program: ProgramDetail;

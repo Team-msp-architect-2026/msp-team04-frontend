@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography } from '../constants';
+import { colors, spacing, typography } from '../../constants';
 import { LinearGradient } from 'expo-linear-gradient';
 
 // ─────────────────────────────────────────────
