@@ -1,16 +1,14 @@
-// src/screens/ProgramDetailScreen.tsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
   Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../constants';
 
 export interface ProgramDetail {
   id: number;
@@ -50,377 +48,599 @@ interface Props {
   onGoHome: () => void;
 }
 
-const TYPE_LABELS = {
+type ProgramType = ProgramDetail['type'];
+
+const PALETTE = {
+  text: '#111827',
+  subText: '#64748B',
+  muted: '#94A3B8',
+  border: '#E8EDF3',
+  softBorder: '#EEF2F6',
+  bg: '#FFFFFF',
+  softBg: '#F8FAFC',
+  yellow: '#F2CF52',
+  yellowDark: '#B88900',
+  primary: '#6377F2',
+  primaryDark: '#4D5FD2',
+  primarySoft: '#F3F5FF',
+  primaryBorder: '#DCE2FF',
+  blue: '#2D8DCE',
+  blueSoft: '#F7FBFF',
+  coral: '#E58B84',
+  coralDark: '#B85A52',
+  coralSoft: '#FFF7F5',
+  coralBorder: '#F4DAD5',
+  red: '#E05252',
+  green: '#45A46A',
+};
+
+const TYPE_LABELS: Record<ProgramType, string> = {
   public: '공공',
   private: '민간',
   online: '온라인',
   government: '정부지원',
 };
 
-const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  public:     { bg: '#FFF3CD', text: '#d4a800' },
-  private:    { bg: '#F3F4F6', text: '#718096' },
-  online:     { bg: '#EBF8FF', text: '#2B6CB0' },
-  government: { bg: '#F0FFF4', text: '#276749' },
-};
-
 const MOCK_REVIEWS = [
-  { name: '김○○ 부모님', age: '만 5세', rating: 5, text: '선생님이 정말 친절하고 아이가 너무 좋아해요. 소규모라 집중적으로 케어해주셔서 만족도가 높아요.', date: '2025.03.15' },
-  { name: '이○○ 부모님', age: '만 6세', rating: 5, text: '체계적인 커리큘럼이 인상적이에요. 아이의 발달에 확실히 도움이 됐어요.', date: '2025.03.08' },
-  { name: '박○○ 부모님', age: '만 4세', rating: 4, text: '접근성이 좋고 선생님이 아이 개인 성향을 잘 파악해주세요.', date: '2025.02.28' },
+  {
+    name: '김○○ 부모님',
+    age: '만 5세',
+    rating: 5,
+    text: '선생님이 정말 친절하고 아이가 너무 좋아해요. 소규모라 집중적으로 케어해주셔서 만족도가 높아요.',
+    date: '2025.03.15',
+  },
+  {
+    name: '이○○ 부모님',
+    age: '만 6세',
+    rating: 5,
+    text: '커리큘럼이 체계적이고 아이가 수업 후에도 집에서 계속 그림을 그리려고 해요.',
+    date: '2025.03.08',
+  },
+  {
+    name: '박○○ 부모님',
+    age: '만 4세',
+    rating: 4,
+    text: '위치가 가깝고 선생님이 아이 성향을 잘 파악해주세요. 처음 미술 수업으로 괜찮았어요.',
+    date: '2025.02.28',
+  },
 ];
 
-function StarRating({ rating }: { rating: number }) {
+function StarRating({ rating, size = 12 }: { rating: number; size?: number }) {
   return (
-    <View style={{ flexDirection: 'row', gap: 2 }}>
-      {[1, 2, 3, 4, 5].map((s) => (
-        <Text key={s} style={{ color: s <= Math.round(rating) ? '#F9A825' : '#E2E8F0', fontSize: 12 }}>★</Text>
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map(star => (
+        <Text
+          key={star}
+          style={[
+            styles.star,
+            {
+              fontSize: size,
+              color: star <= Math.round(rating) ? '#F8B400' : '#E2E8F0',
+            },
+          ]}
+        >
+          ★
+        </Text>
       ))}
     </View>
   );
 }
 
-export default function ProgramDetailScreen({ program, onBack, onApply, onGoHome }: Props) {
+function InfoPill({
+  children,
+  tone = 'default',
+}: {
+  children: React.ReactNode;
+  tone?: 'default' | 'yellow' | 'primary';
+}) {
+  const pillStyle =
+    tone === 'yellow'
+      ? styles.pillYellow
+      : tone === 'primary'
+        ? styles.pillPrimary
+        : styles.pillDefault;
+
+  const textStyle =
+    tone === 'yellow'
+      ? styles.pillTextYellow
+      : tone === 'primary'
+        ? styles.pillTextPrimary
+        : styles.pillTextDefault;
+
+  return (
+    <View style={[styles.pill, pillStyle]}>
+      <Text style={[styles.pillText, textStyle]}>{children}</Text>
+    </View>
+  );
+}
+
+export default function ProgramDetailScreen({
+  program,
+  onBack,
+  onApply,
+  onGoHome,
+}: Props) {
   const [isLiked, setIsLiked] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'review'>('info');
 
-  const spotsLeft = program.capacity - program.enrolled;
-  const enrolledPct = Math.round((program.enrolled / program.capacity) * 100);
   const matchRate = program.matchRate ?? program.score;
-  const reviewChips = program.reviewChips ?? ['선생님 친절', '소규모 수업', '만족도 높음', '체계적 커리큘럼', '아이가 좋아함'];
-  const typeStyle = TYPE_COLORS[program.type] ?? { bg: '#F3F4F6', text: '#718096' };
+  const spotsLeft = Math.max(program.capacity - program.enrolled, 0);
+  const safeCapacity = Math.max(program.capacity, 1);
+  const enrolledPct = Math.min(
+    100,
+    Math.round((program.enrolled / safeCapacity) * 100),
+  );
 
-  const aiReasons = [
-    program.aiReason ?? '아이의 고민 영역에 최적화된 프로그램',
-    '비슷한 연령대 부모 만족도 1위 프로그램',
-    program.distance !== '-'
-      ? `${program.location} 위치, ${program.distance} 이내`
-      : '온라인으로 어디서나 수강 가능',
-    program.priceValue === 0
-      ? '무료 이용 가능 (정부/공공 지원)'
-      : `월 ${program.price} — 합리적인 비용`,
-  ];
+  const reviewChips = program.reviewChips?.length
+    ? program.reviewChips
+    : ['선생님 친절', '소규모 수업', '피드백 좋음', '아이가 좋아함'];
+
+  const aiReasons = useMemo(
+    () => [
+      program.aiReason ??
+        '소규모 수업과 선생님 피드백을 원하는 조건에 잘 맞는 프로그램입니다.',
+      program.distance !== '-'
+        ? `${program.location} 위치, ${program.distance} 거리라 이동 부담이 적어요.`
+        : '온라인 수업으로 이동 부담 없이 참여할 수 있어요.',
+      program.priceValue === 0
+        ? '무료 또는 공공 지원 프로그램이라 비용 부담이 낮아요.'
+        : `${program.price}으로 예산 조건에 맞춰 검토하기 좋아요.`,
+      `${program.ageRange} 대상 수업이라 자녀 연령 조건과 잘 맞아요.`,
+    ],
+    [program],
+  );
+
+  const handleOpenWebsite = () => {
+    if (!program.website) {
+      return;
+    }
+
+    Linking.openURL(program.website);
+  };
+
+  const handleCall = () => {
+    if (!program.contact) {
+      return;
+    }
+
+    Linking.openURL(`tel:${program.contact}`);
+  };
 
   return (
-    <SafeAreaView style={s.root}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <TouchableOpacity style={s.headerBtn} onPress={onBack}>
-          <Ionicons name="arrow-back" size={22} color="#1A1A1A" />
+    <SafeAreaView style={styles.root} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={onBack}
+          activeOpacity={0.75}
+          hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+        >
+          <Ionicons name="arrow-back" size={22} color={PALETTE.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>프로그램 상세</Text>
-        <View style={{ flexDirection: 'row' }}>
-          <TouchableOpacity style={s.headerBtn} onPress={() => setIsLiked(!isLiked)}>
-            <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={22} color={isLiked ? '#E53E3E' : '#1A1A1A'} />
-          </TouchableOpacity>
-          <TouchableOpacity style={s.headerBtn}>
-            <Ionicons name="share-outline" size={22} color="#1A1A1A" />
-          </TouchableOpacity>
-        </View>
+
+        <Text style={styles.headerTitle} pointerEvents="none">
+          프로그램 상세
+        </Text>
+
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => setIsLiked(prev => !prev)}
+          activeOpacity={0.75}
+          hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+        >
+          <Ionicons
+            name={isLiked ? 'heart' : 'heart-outline'}
+            size={23}
+            color={isLiked ? PALETTE.red : PALETTE.text}
+          />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.summarySection}>
+          <View style={styles.heroCard}>
+            <View style={styles.heroIconCircle}>
+              <Text style={styles.heroEmoji}>🏫</Text>
+            </View>
+            <View style={styles.heroGlowOne} />
+            <View style={styles.heroGlowTwo} />
+          </View>
 
-        {/* 히어로 영역 (이미지 대체) */}
-        <View style={s.hero}>
-          <View style={s.heroImagePlaceholder}>
-            <Text style={s.heroEmoji}>🏫</Text>
-          </View>
-          {/* 배지들 */}
-          <View style={s.heroBadges}>
-            <View style={[s.typeBadge, { backgroundColor: typeStyle.bg }]}>
-              <Text style={[s.typeBadgeText, { color: typeStyle.text }]}>{TYPE_LABELS[program.type]}</Text>
+          <View style={styles.summaryContent}>
+            <View style={styles.badgeRow}>
+              <InfoPill>{TYPE_LABELS[program.type]}</InfoPill>
+
+              {program.isPartner && (
+                <InfoPill tone="yellow">MoMent 제휴</InfoPill>
+              )}
+
+              <InfoPill tone="primary">AI 매칭 {matchRate}%</InfoPill>
             </View>
-            {program.isPartner && (
-              <View style={s.partnerBadge}>
-                <Text style={s.partnerBadgeText}>MoMent 제휴</Text>
-              </View>
-            )}
-            <View style={s.aiBadge}>
-              <Text style={s.aiBadgeText}>✦ AI {matchRate}%</Text>
+
+            <Text style={styles.organization}>{program.organization}</Text>
+            <Text style={styles.title}>{program.title}</Text>
+
+            <View style={styles.ratingLine}>
+              <Ionicons name="star" size={14} color="#F8B400" />
+              <Text style={styles.ratingValue}>{program.rating}</Text>
+              <Text style={styles.ratingMeta}>
+                ({program.reviewCount}개 후기)
+              </Text>
             </View>
-          </View>
-          <View style={s.scoreBadge}>
-            <Text style={s.scoreBadgeText}>{program.score}점</Text>
           </View>
         </View>
 
-        <View style={s.content}>
-          {/* 제목 */}
-          <View style={s.titleSection}>
-            <Text style={s.org}>{program.organization}</Text>
-            <Text style={s.title}>{program.title}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-              <Ionicons name="star" size={14} color={colors.primary.default} />
-              <Text style={s.ratingNum}>{program.rating}</Text>
-              <Text style={s.ratingCount}>({program.reviewCount}개 후기)</Text>
-            </View>
-          </View>
-
-          {/* 빠른 정보 4칸 */}
-          <View style={s.quickGrid}>
-            {[
-              { icon: 'location-outline', label: '위치', value: program.distance },
-              { icon: 'wallet-outline', label: '비용', value: program.price },
-              { icon: 'people-outline', label: '대상', value: program.ageRange },
-              { icon: 'time-outline', label: '일정', value: program.schedule },
-            ].map((item) => (
-              <View key={item.label} style={s.quickCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                  <Ionicons name={item.icon as any} size={14} color="#718096" />
-                  <Text style={s.quickLabel}>{item.label}</Text>
-                </View>
-                <Text style={s.quickValue} numberOfLines={1}>{item.value}</Text>
+        <View style={styles.content}>
+          <View style={styles.quickGrid}>
+            <View style={styles.quickCard}>
+              <View style={styles.quickLabelRow}>
+                <Ionicons name="location-outline" size={14} color={PALETTE.muted} />
+                <Text style={styles.quickLabel}>위치</Text>
               </View>
-            ))}
-          </View>
-
-          {/* AI 배너 */}
-          <View style={s.aiBanner}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 14, color: '#3182CE' }}>✦</Text>
-              <Text style={s.aiBannerText}>비슷한 부모들이 가장 만족한 프로그램이에요</Text>
-            </View>
-            <View style={s.aiBannerBadge}>
-              <Text style={s.aiBannerBadgeText}>{matchRate}%</Text>
-            </View>
-          </View>
-
-          {/* 모집 현황 */}
-          <View style={s.enrollCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={s.enrollTitle}>모집 현황</Text>
-              <Text style={[s.enrollSpots, { color: spotsLeft <= 5 ? '#E53E3E' : '#38A169' }]}>
-                {spotsLeft}자리 남음
+              <Text style={styles.quickValue} numberOfLines={1}>
+                {program.distance}
               </Text>
             </View>
-            <View style={s.progressBar}>
-              <View style={[s.progressFill, { width: `${enrolledPct}%` as any }]} />
+
+            <View style={styles.quickCard}>
+              <View style={styles.quickLabelRow}>
+                <Ionicons name="card-outline" size={14} color={PALETTE.muted} />
+                <Text style={styles.quickLabel}>비용</Text>
+              </View>
+              <Text style={styles.quickValue} numberOfLines={1}>
+                {program.price}
+              </Text>
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-              <Text style={s.enrollMeta}>{program.enrolled}명 신청</Text>
-              <Text style={s.enrollMeta}>정원 {program.capacity}명</Text>
+
+            <View style={styles.quickCard}>
+              <View style={styles.quickLabelRow}>
+                <Ionicons name="people-outline" size={14} color={PALETTE.muted} />
+                <Text style={styles.quickLabel}>대상</Text>
+              </View>
+              <Text style={styles.quickValue} numberOfLines={1}>
+                {program.ageRange}
+              </Text>
+            </View>
+
+            <View style={styles.quickCard}>
+              <View style={styles.quickLabelRow}>
+                <Ionicons name="time-outline" size={14} color={PALETTE.muted} />
+                <Text style={styles.quickLabel}>일정</Text>
+              </View>
+              <Text style={styles.quickValue} numberOfLines={1}>
+                {program.schedule}
+              </Text>
             </View>
           </View>
 
-          {/* 탭 */}
-          <View style={s.tabBar}>
-            {(['info', 'review'] as const).map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                style={[s.tab, activeTab === tab && s.tabActive]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-                  {tab === 'info' ? '상세정보' : `후기 (${program.reviewCount})`}
+          <View style={styles.capacityCard}>
+            <View style={styles.capacityHeader}>
+              <Text style={styles.capacityTitle}>모집 현황</Text>
+
+              <View style={styles.capacityRemainBadge}>
+                <View style={styles.capacityRemainDot} />
+                <Text style={styles.capacityRemainText}>
+                  {program.isOpen ? `잔여 ${spotsLeft}석` : '모집 마감'}
                 </Text>
-              </TouchableOpacity>
-            ))}
+              </View>
+            </View>
+
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${enrolledPct}%`,
+                    backgroundColor: PALETTE.primary,
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={styles.capacityMetaRow}>
+              <Text style={styles.capacityMeta}>{program.enrolled}명 신청</Text>
+              <Text style={styles.capacityMeta}>정원 {program.capacity}명</Text>
+            </View>
           </View>
 
-          {/* ── 상세정보 탭 ── */}
-          {activeTab === 'info' && (
-            <>
-              {/* AI 추천 이유 */}
-              <View style={s.aiReasonCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <Text style={{ fontSize: 13, color: '#3182CE' }}>✦</Text>
-                  <Text style={s.aiReasonTitle}>AI 추천 이유</Text>
+          <View style={styles.tabBar}>
+            <TouchableOpacity
+              style={[styles.tabButton, activeTab === 'info' && styles.tabButtonActive]}
+              onPress={() => setActiveTab('info')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === 'info' && styles.tabTextActive,
+                ]}
+              >
+                상세정보
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tabButton,
+                activeTab === 'review' && styles.tabButtonActive,
+              ]}
+              onPress={() => setActiveTab('review')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === 'review' && styles.tabTextActive,
+                ]}
+              >
+                후기 ({program.reviewCount})
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {activeTab === 'info' ? (
+            <View style={styles.tabContent}>
+              <View style={styles.aiReasonCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="sparkles" size={15} color={PALETTE.primary} />
+                  <Text style={styles.aiReasonTitle}>AI 추천 이유</Text>
                 </View>
-                {aiReasons.map((r, i) => (
-                  <View key={i} style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                    <Text style={s.aiCheck}>✓</Text>
-                    <Text style={s.aiReasonText}>{r}</Text>
-                  </View>
-                ))}
+
+                <View style={styles.reasonList}>
+                  {aiReasons.map(reason => (
+                    <View key={reason} style={styles.reasonItem}>
+                      <Ionicons
+                        name="checkmark"
+                        size={14}
+                        color={PALETTE.primary}
+                        style={styles.reasonIcon}
+                      />
+                      <Text style={styles.reasonText}>{reason}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
 
-              {/* 프로그램 소개 */}
-              <View style={s.section}>
-                <Text style={s.sectionTitle}>프로그램 소개</Text>
-                <Text style={s.sectionBody}>{program.description}</Text>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>프로그램 소개</Text>
+                <Text style={styles.sectionBody}>{program.description}</Text>
               </View>
 
-              {/* 상세 정보 */}
-              <View style={s.section}>
-                <Text style={s.sectionTitle}>상세 정보</Text>
-                <View style={s.infoTable}>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>상세 정보</Text>
+
+                <View style={styles.infoTable}>
                   {[
-                    { label: '운영 기간', value: `${program.startDate} ~ ${program.endDate}` },
+                    {
+                      label: '운영 기간',
+                      value: `${program.startDate} ~ ${program.endDate}`,
+                    },
                     { label: '운영 시간', value: program.schedule },
                     { label: '대상 연령', value: program.ageRange },
                     { label: '수업 인원', value: `최대 ${program.capacity}명` },
                     { label: '위치', value: program.address },
-                  ].map((d, idx, arr) => (
-                    <View key={d.label} style={[s.infoRow, idx < arr.length - 1 && s.infoRowBorder]}>
-                      <Text style={s.infoLabel}>{d.label}</Text>
-                      <Text style={s.infoValue}>{d.value}</Text>
+                  ].map((item, index, arr) => (
+                    <View
+                      key={item.label}
+                      style={[
+                        styles.infoRow,
+                        index < arr.length - 1 && styles.infoRowBorder,
+                      ]}
+                    >
+                      <Text style={styles.infoLabel}>{item.label}</Text>
+                      <Text style={styles.infoValue}>{item.value}</Text>
                     </View>
                   ))}
                 </View>
               </View>
 
-              {/* 커리큘럼 */}
-              <View style={s.section}>
-                <Text style={s.sectionTitle}>커리큘럼</Text>
-                {program.curriculum.map((item, i) => (
-                  <View key={i} style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                    <Ionicons name="checkmark-circle" size={16} color="#38A169" style={{ marginTop: 1 }} />
-                    <Text style={s.sectionBody}>{item}</Text>
-                  </View>
-                ))}
-              </View>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>커리큘럼</Text>
 
-              {/* AI 후기 키워드 */}
-              <View style={s.section}>
-                <Text style={s.sectionTitle}>AI 후기 키워드 분석</Text>
-                <View style={s.chipRow}>
-                  {reviewChips.map((chip) => (
-                    <View key={chip} style={s.chip}>
-                      <Text style={s.chipText}>{chip}</Text>
+                <View style={styles.curriculumList}>
+                  {program.curriculum.map((item, index) => (
+                    <View key={`${item}-${index}`} style={styles.curriculumItem}>
+                      <View style={styles.curriculumCheck}>
+                        <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                      </View>
+                      <Text style={styles.curriculumText}>{item}</Text>
                     </View>
                   ))}
                 </View>
               </View>
 
-              {/* 위치 */}
-              <View style={s.section}>
-                <Text style={s.sectionTitle}>위치</Text>
-                <View style={s.mapPlaceholder}>
-                  <Ionicons name="location" size={32} color="#CBD5E0" />
-                  <Text style={{ fontSize: 12, color: '#A0AEC0', marginTop: 4 }}>지도 준비중</Text>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>AI 후기 키워드 분석</Text>
+
+                <View style={styles.chipRow}>
+                  {reviewChips.map(chip => (
+                    <View key={chip} style={styles.keywordChip}>
+                      <Text style={styles.keywordChipText}>{chip}</Text>
+                    </View>
+                  ))}
                 </View>
-                <Text style={s.sectionBody}>{program.address}</Text>
               </View>
 
-              {/* 문의 */}
-              <View style={[s.section, s.contactCard]}>
-                <Text style={s.sectionTitle}>문의</Text>
-                <TouchableOpacity
-                  style={s.contactRow}
-                  onPress={() => Linking.openURL(`tel:${program.contact}`)}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="call-outline" size={16} color="#718096" />
-                    <Text style={s.contactText}>{program.contact}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color="#CBD5E0" />
-                </TouchableOpacity>
-                {program.website && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>위치</Text>
+
+                <View style={styles.mapBox}>
+                  <Ionicons name="location" size={34} color="#CBD5E1" />
+                  <Text style={styles.mapText}>지도 준비중</Text>
+                </View>
+
+                <Text style={styles.addressText}>{program.address}</Text>
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>문의</Text>
+
+                <View style={styles.contactCard}>
                   <TouchableOpacity
-                    style={[s.contactRow, { borderTopWidth: 1, borderTopColor: '#F0F0F0' }]}
-                    onPress={() => Linking.openURL(program.website!)}
+                    style={styles.contactRow}
+                    onPress={handleCall}
+                    activeOpacity={0.75}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Ionicons name="globe-outline" size={16} color="#718096" />
-                      <Text style={s.contactText}>홈페이지 방문</Text>
+                    <View style={styles.contactLeft}>
+                      <Ionicons name="call-outline" size={16} color={PALETTE.muted} />
+                      <Text style={styles.contactText}>{program.contact}</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color="#CBD5E0" />
+                    <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
                   </TouchableOpacity>
-                )}
+
+                  {program.website && (
+                    <TouchableOpacity
+                      style={[styles.contactRow, styles.contactRowBorder]}
+                      onPress={handleOpenWebsite}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.contactLeft}>
+                        <Ionicons
+                          name="globe-outline"
+                          size={16}
+                          color={PALETTE.muted}
+                        />
+                        <Text style={styles.contactText}>홈페이지 방문</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
 
-              {/* 태그 */}
-              <View style={s.chipRow}>
-                {program.tags.map((tag, i) => (
-                  <View key={i} style={s.tagChip}>
-                    <Text style={s.tagText}>#{tag}</Text>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>태그</Text>
+
+                <View style={styles.tagSection}>
+                  {program.tags.map(tag => (
+                    <View key={tag} style={styles.tagChip}>
+                      <Text style={styles.tagText}>#{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.tabContent}>
+              <View style={styles.reviewSummaryCard}>
+                <View style={styles.reviewScoreBox}>
+                  <Text style={styles.reviewScore}>{program.rating}</Text>
+                  <StarRating rating={program.rating} size={13} />
+                  <Text style={styles.reviewTotalText}>
+                    {program.reviewCount}개 후기
+                  </Text>
+                </View>
+
+                <View style={styles.ratingBars}>
+                  {[5, 4, 3, 2, 1].map(score => (
+                    <View key={score} style={styles.ratingBarRow}>
+                      <Text style={styles.ratingBarLabel}>{score}</Text>
+                      <View style={styles.ratingBarTrack}>
+                        <View
+                          style={[
+                            styles.ratingBarFill,
+                            {
+                              width:
+                                score === 5
+                                  ? '82%'
+                                  : score === 4
+                                    ? '14%'
+                                    : score === 3
+                                      ? '4%'
+                                      : '2%',
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>AI 후기 키워드 분석</Text>
+
+                <View style={styles.chipRow}>
+                  {reviewChips.map(chip => (
+                    <View key={chip} style={styles.keywordChip}>
+                      <Text style={styles.keywordChipText}>{chip}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.reviewList}>
+                {MOCK_REVIEWS.map(review => (
+                  <View key={`${review.name}-${review.date}`} style={styles.reviewCard}>
+                    <View style={styles.reviewHeader}>
+                      <View style={styles.reviewerLeft}>
+                        <View style={styles.reviewerAvatar}>
+                          <Text style={styles.reviewerAvatarText}>부</Text>
+                        </View>
+
+                        <View>
+                          <Text style={styles.reviewName}>{review.name}</Text>
+                          <Text style={styles.reviewAge}>{review.age} 보호자</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.reviewRatingBox}>
+                        <StarRating rating={review.rating} size={11} />
+                        <Text style={styles.reviewDate}>{review.date}</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.reviewText}>{review.text}</Text>
                   </View>
                 ))}
               </View>
-            </>
-          )}
-
-          {/* ── 후기 탭 ── */}
-          {activeTab === 'review' && (
-            <>
-              {/* 평점 요약 */}
-              <View style={s.ratingCard}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={s.ratingBig}>{program.rating}</Text>
-                  <StarRating rating={program.rating} />
-                  <Text style={s.ratingCountSmall}>{program.reviewCount}개 후기</Text>
-                </View>
-                <View style={{ flex: 1, gap: 4 }}>
-                  {[5, 4, 3, 2, 1].map((s2) => (
-                    <View key={s2} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={{ fontSize: 11, color: '#718096', width: 8 }}>{s2}</Text>
-                      <View style={s.ratingBarBg}>
-                        <View style={[s.ratingBarFill, {
-                          width: s2 === 5 ? '85%' : s2 === 4 ? '12%' : '3%',
-                        }]} />
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              {/* AI 키워드 */}
-              <View style={[s.section, { marginTop: 0 }]}>
-                <Text style={s.sectionTitle}>AI 후기 키워드 분석</Text>
-                <View style={s.chipRow}>
-                  {reviewChips.map((chip) => (
-                    <View key={chip} style={s.chip}>
-                      <Text style={s.chipText}>{chip}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              {/* 리뷰 목록 */}
-              {MOCK_REVIEWS.map((r, i) => (
-                <View key={i} style={s.reviewCard}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                      <View style={s.reviewAvatar}>
-                        <Text style={{ fontSize: 14 }}>👩</Text>
-                      </View>
-                      <View>
-                        <Text style={s.reviewName}>{r.name}</Text>
-                        <Text style={s.reviewAge}>{r.age} 부모님</Text>
-                      </View>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <StarRating rating={r.rating} />
-                      <Text style={s.reviewDate}>{r.date}</Text>
-                    </View>
-                  </View>
-                  <Text style={s.reviewText}>{r.text}</Text>
-                </View>
-              ))}
-            </>
-          )}
-
-          <View style={{ height: 100 }} />
-        </View>
-      </ScrollView>
-
-      {/* ── 하단 고정 CTA ── */}
-      <View style={s.cta}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-          <View>
-            <Text style={s.ctaPriceLabel}>월 수강료</Text>
-            <Text style={s.ctaPrice}>{program.price}</Text>
-          </View>
-          {spotsLeft <= 5 && program.isOpen && (
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={s.ctaUrgent}>잔여 {spotsLeft}석</Text>
-              <Text style={s.ctaUrgentSub}>빠른 신청 권장</Text>
             </View>
           )}
         </View>
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <TouchableOpacity style={s.ctaHomeBtn} onPress={onGoHome}>
-            <Ionicons name="home-outline" size={20} color="#4A5568" />
-          </TouchableOpacity>
+      </ScrollView>
+
+      <View style={styles.ctaWrap}>
+        <View style={styles.ctaSummaryRow}>
+          <View style={styles.ctaPriceBlock}>
+            <Text style={styles.ctaLabel}>월 수강료</Text>
+            <Text style={styles.ctaPrice}>{program.price}</Text>
+          </View>
+
+          {program.isOpen && (
+            <View style={styles.ctaSeatBadge}>
+              <View style={styles.ctaSeatDot} />
+              <Text style={styles.ctaSeatText}>잔여 {spotsLeft}석</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.ctaButtonRow}>
           <TouchableOpacity
-            style={[s.ctaApplyBtn, !program.isOpen && s.ctaApplyBtnDisabled]}
+            style={styles.homeButton}
+            onPress={onGoHome}
+            activeOpacity={0.78}
+          >
+            <Ionicons name="home-outline" size={20} color="#475569" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.applyButton,
+              !program.isOpen && styles.applyButtonDisabled,
+            ]}
             onPress={() => program.isOpen && onApply(program)}
             disabled={!program.isOpen}
+            activeOpacity={0.85}
           >
-            <Text style={s.ctaApplyText}>
+            <Text style={styles.applyButtonText}>
               {program.isOpen
-                ? program.isPartner ? '신청하기' : '신청 페이지로 이동'
+                ? program.isPartner
+                  ? '신청하기'
+                  : '신청 페이지로 이동'
                 : '모집 마감'}
             </Text>
           </TouchableOpacity>
@@ -430,105 +650,827 @@ export default function ProgramDetailScreen({ program, onBack, onApply, onGoHome
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#fff' },
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: PALETTE.bg,
+  },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 56, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  headerBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A' },
+  header: {
+    height: 52,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: PALETTE.bg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
 
-  scroll: { paddingBottom: 20 },
-  content: { paddingHorizontal: 16 },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
 
-  hero: { height: 200, backgroundColor: '#EBF8FF', justifyContent: 'center', alignItems: 'center', position: 'relative', marginBottom: 0 },
-  heroImagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
-  heroEmoji: { fontSize: 64 },
-  heroBadges: { position: 'absolute', bottom: 12, left: 12, flexDirection: 'row', gap: 6 },
-  typeBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  typeBadgeText: { fontSize: 11, fontWeight: '600' },
-  partnerBadge: { backgroundColor: '#FFF3CD', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  partnerBadgeText: { fontSize: 11, fontWeight: '600', color: '#d4a800' },
-  aiBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: '#3182CE' },
-  aiBadgeText: { fontSize: 11, fontWeight: '700', color: '#fff' },
-  scoreBadge: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  scoreBadgeText: { fontSize: 13, fontWeight: '700', color: colors.primary.default },
+  headerTitle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '800',
+    color: PALETTE.text,
+    letterSpacing: -0.3,
+    zIndex: 1,
+  },
 
-  titleSection: { paddingTop: 16, marginBottom: 16 },
-  org: { fontSize: 12, color: '#888', marginBottom: 4 },
-  title: { fontSize: 20, fontWeight: '700', color: '#1A1A1A' },
-  ratingNum: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
-  ratingCount: { fontSize: 13, color: '#888' },
+  scrollView: {
+    flex: 1,
+    backgroundColor: PALETTE.bg,
+  },
 
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  quickCard: { width: '47%', backgroundColor: '#F7F8FA', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E5E7EB' },
-  quickLabel: { fontSize: 11, color: '#718096' },
-  quickValue: { fontSize: 13, fontWeight: '600', color: '#1A1A1A' },
+  scrollContent: {
+    paddingBottom: 168,
+  },
 
-  aiBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#EBF8FF', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#BEE3F8', marginBottom: 16 },
-  aiBannerText: { fontSize: 13, fontWeight: '600', color: '#1A365D', flex: 1 },
-  aiBannerBadge: { backgroundColor: 'rgba(255,255,255,0.8)', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
-  aiBannerBadgeText: { fontSize: 13, fontWeight: '700', color: '#3182CE' },
+  summarySection: {
+    backgroundColor: PALETTE.bg,
+  },
 
-  enrollCard: { backgroundColor: '#F0FFF4', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#C6F6D5', marginBottom: 16 },
-  enrollTitle: { fontSize: 13, fontWeight: '600', color: '#1A1A1A' },
-  enrollSpots: { fontSize: 13, fontWeight: '700' },
-  progressBar: { height: 8, backgroundColor: '#E2E8F0', borderRadius: 999, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#38A169', borderRadius: 999 },
-  enrollMeta: { fontSize: 11, color: '#718096' },
+  heroCard: {
+    height: 148,
+    backgroundColor: '#F7F9FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
 
-  tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', marginBottom: 20 },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabActive: { borderBottomColor: colors.primary.default },
-  tabText: { fontSize: 14, color: '#888', fontWeight: '500' },
-  tabTextActive: { color: colors.primary.default, fontWeight: '700' },
+  heroIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
 
-  aiReasonCard: { backgroundColor: '#EBF8FF', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#BEE3F8', marginBottom: 20 },
-  aiReasonTitle: { fontSize: 13, fontWeight: '700', color: '#1A365D' },
-  aiCheck: { color: '#3182CE', fontWeight: '700', fontSize: 12, marginTop: 2 },
-  aiReasonText: { fontSize: 12, color: '#2B6CB0', lineHeight: 20, flex: 1 },
+  heroEmoji: {
+    fontSize: 40,
+  },
 
-  section: { marginBottom: 20 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1A1A1A', marginBottom: 10 },
-  sectionBody: { fontSize: 13, color: '#718096', lineHeight: 21 },
+  heroGlowOne: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(99,119,242,0.08)',
+    right: 30,
+    top: 24,
+  },
 
-  infoTable: { borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 12 },
-  infoRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  infoLabel: { fontSize: 12, color: '#718096', fontWeight: '500', minWidth: 72 },
-  infoValue: { fontSize: 12, fontWeight: '600', color: '#2D3748', textAlign: 'right', flex: 1 },
+  heroGlowTwo: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(242,207,82,0.08)',
+    left: 34,
+    bottom: -10,
+  },
 
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { backgroundColor: '#EBF8FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: '#BEE3F8' },
-  chipText: { fontSize: 11, fontWeight: '600', color: '#2B6CB0' },
-  tagChip: { backgroundColor: '#F7F8FA', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: '#E5E7EB' },
-  tagText: { fontSize: 11, color: '#718096' },
+  summaryContent: {
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F7F8FA',
+  },
 
-  mapPlaceholder: { height: 140, backgroundColor: '#F7F8FA', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginBottom: 12,
+  },
 
-  contactCard: { backgroundColor: '#F7F8FA', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E5E7EB' },
-  contactRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
-  contactText: { fontSize: 13, color: '#1A1A1A' },
+  pill: {
+    height: 25,
+    paddingHorizontal: 10,
+    borderRadius: 13,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
-  ratingCard: { flexDirection: 'row', gap: 16, backgroundColor: '#F9F9F9', borderRadius: 14, padding: 16, marginBottom: 20 },
-  ratingBig: { fontSize: 36, fontWeight: '800', color: '#1A202C', lineHeight: 40 },
-  ratingCountSmall: { fontSize: 11, color: '#A0AEC0', marginTop: 4 },
-  ratingBarBg: { flex: 1, height: 6, backgroundColor: '#E2E8F0', borderRadius: 999, overflow: 'hidden' },
-  ratingBarFill: { height: '100%', backgroundColor: '#F9A825', borderRadius: 999 },
+  pillDefault: {
+    backgroundColor: '#FAFBFC',
+    borderColor: '#E8EDF3',
+  },
 
-  reviewCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#F0F0F0', borderRadius: 14, padding: 16, marginBottom: 12 },
-  reviewAvatar: { width: 32, height: 32, borderRadius: 999, backgroundColor: '#FFF3CD', justifyContent: 'center', alignItems: 'center' },
-  reviewName: { fontSize: 12, fontWeight: '700', color: '#2D3748' },
-  reviewAge: { fontSize: 10, color: '#A0AEC0' },
-  reviewDate: { fontSize: 10, color: '#CBD5E0', marginTop: 2 },
-  reviewText: { fontSize: 12, color: '#4A5568', lineHeight: 20 },
+  pillYellow: {
+    backgroundColor: '#FFF9E5',
+    borderColor: '#F7E5A1',
+  },
 
-  cta: { borderTopWidth: 1, borderTopColor: '#F0F0F0', backgroundColor: '#fff', paddingHorizontal: 20, paddingTop: 14, paddingBottom: 28 },
-  ctaPriceLabel: { fontSize: 12, color: '#A0AEC0' },
-  ctaPrice: { fontSize: 20, fontWeight: '800', color: '#1A202C' },
-  ctaUrgent: { fontSize: 11, color: '#E53E3E', fontWeight: '700' },
-  ctaUrgentSub: { fontSize: 11, color: '#A0AEC0' },
-  ctaHomeBtn: { width: 48, height: 48, borderRadius: 14, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#F8F9FA', justifyContent: 'center', alignItems: 'center' },
-  ctaApplyBtn: { flex: 1, height: 48, borderRadius: 14, backgroundColor: '#667EEA', justifyContent: 'center', alignItems: 'center' },
-  ctaApplyBtnDisabled: { backgroundColor: '#CBD5E0' },
-  ctaApplyText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  pillPrimary: {
+    backgroundColor: PALETTE.primarySoft,
+    borderColor: PALETTE.primaryBorder,
+  },
+
+  pillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: -0.1,
+  },
+
+  pillTextDefault: {
+    color: '#667085',
+  },
+
+  pillTextYellow: {
+    color: PALETTE.yellowDark,
+  },
+
+  pillTextPrimary: {
+    color: PALETTE.primaryDark,
+  },
+
+  organization: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: PALETTE.muted,
+    marginBottom: 5,
+  },
+
+  title: {
+    fontSize: 22,
+    lineHeight: 29,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.6,
+  },
+
+  ratingLine: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+
+  ratingValue: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: PALETTE.text,
+  },
+
+  ratingMeta: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: PALETTE.muted,
+  },
+
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 18,
+  },
+
+  quickCard: {
+    width: '48.5%',
+    minHeight: 74,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    justifyContent: 'space-between',
+  },
+
+  quickLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+
+  quickLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  quickValue: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.2,
+  },
+
+  capacityCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    padding: 15,
+    marginBottom: 20,
+  },
+
+  capacityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 11,
+  },
+
+  capacityTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: PALETTE.text,
+  },
+
+  capacityRemainBadge: {
+    minHeight: 28,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: PALETTE.coralSoft,
+    borderWidth: 1,
+    borderColor: PALETTE.coralBorder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+
+  capacityRemainDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: PALETTE.coral,
+  },
+
+  capacityRemainText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: PALETTE.coralDark,
+    letterSpacing: -0.15,
+  },
+
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#E9EEF5',
+    overflow: 'hidden',
+  },
+
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+
+  capacityMetaRow: {
+    marginTop: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  capacityMeta: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7A8B9B',
+  },
+
+  tabBar: {
+    height: 50,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.softBorder,
+    flexDirection: 'row',
+    marginBottom: 0,
+  },
+
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+
+  tabButtonActive: {
+    borderBottomColor: PALETTE.primary,
+  },
+
+  tabText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: PALETTE.muted,
+    letterSpacing: -0.2,
+  },
+
+  tabTextActive: {
+    color: PALETTE.primaryDark,
+  },
+
+  tabContent: {
+    paddingTop: 24,
+    gap: 28,
+  },
+
+  aiReasonCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+  },
+
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 14,
+  },
+
+  aiReasonTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.2,
+  },
+
+  reasonList: {
+    gap: 12,
+  },
+
+  reasonItem: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  reasonIcon: {
+    marginTop: 3,
+  },
+
+  reasonText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 22,
+    fontWeight: '600',
+    color: PALETTE.subText,
+    letterSpacing: -0.15,
+  },
+
+  section: {
+    gap: 14,
+  },
+
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.3,
+  },
+
+  sectionBody: {
+    fontSize: 13,
+    lineHeight: 23,
+    fontWeight: '600',
+    color: PALETTE.subText,
+    letterSpacing: -0.2,
+  },
+
+  infoTable: {
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+  },
+
+  infoRow: {
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  infoRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.softBorder,
+  },
+
+  infoLabel: {
+    width: 76,
+    fontSize: 12,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  infoValue: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#334155',
+    lineHeight: 18,
+  },
+
+  curriculumList: {
+    gap: 12,
+  },
+
+  curriculumItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+
+  curriculumCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: PALETTE.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  curriculumText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: PALETTE.subText,
+    lineHeight: 20,
+  },
+
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+
+  keywordChip: {
+    minHeight: 28,
+    paddingHorizontal: 11,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.primaryBorder,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  keywordChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: PALETTE.primaryDark,
+  },
+
+  mapBox: {
+    height: 136,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: PALETTE.softBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  mapText: {
+    marginTop: 5,
+    fontSize: 12,
+    fontWeight: '700',
+    color: PALETTE.muted,
+  },
+
+  addressText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: PALETTE.subText,
+  },
+
+  contactCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+
+  contactRow: {
+    minHeight: 50,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  contactRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.softBorder,
+  },
+
+  contactLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+
+  contactText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+
+  tagSection: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingBottom: 4,
+  },
+
+  tagChip: {
+    minHeight: 28,
+    paddingHorizontal: 11,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: PALETTE.softBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  tagText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  reviewSummaryCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    flexDirection: 'row',
+    gap: 18,
+  },
+
+  reviewScoreBox: {
+    width: 86,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  reviewScore: {
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -1,
+  },
+
+  starRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+
+  star: {
+    includeFontPadding: false,
+  },
+
+  reviewTotalText: {
+    marginTop: 5,
+    fontSize: 11,
+    fontWeight: '700',
+    color: PALETTE.muted,
+  },
+
+  ratingBars: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  ratingBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  ratingBarLabel: {
+    width: 10,
+    fontSize: 11,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  ratingBarTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+
+  ratingBarFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: PALETTE.primary,
+  },
+
+  reviewList: {
+    gap: 14,
+  },
+
+  reviewCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: PALETTE.bg,
+    padding: 15,
+  },
+
+  reviewHeader: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  reviewerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  reviewerAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFF7DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  reviewerAvatarText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: PALETTE.yellowDark,
+  },
+
+  reviewName: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: PALETTE.text,
+  },
+
+  reviewAge: {
+    marginTop: 2,
+    fontSize: 11,
+    fontWeight: '700',
+    color: PALETTE.muted,
+  },
+
+  reviewRatingBox: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+
+  reviewDate: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#B6C2D0',
+  },
+
+  reviewText: {
+    fontSize: 13,
+    lineHeight: 21,
+    fontWeight: '600',
+    color: PALETTE.subText,
+    letterSpacing: -0.15,
+  },
+
+  ctaWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.softBorder,
+    backgroundColor: PALETTE.bg,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 24,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 10,
+  },
+
+  ctaSummaryRow: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  ctaPriceBlock: {
+    justifyContent: 'center',
+  },
+
+  ctaLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  ctaPrice: {
+    marginTop: 2,
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.7,
+  },
+
+  ctaSeatBadge: {
+    minHeight: 30,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+    backgroundColor: PALETTE.coralSoft,
+    borderWidth: 1,
+    borderColor: PALETTE.coralBorder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+
+  ctaSeatDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: PALETTE.coral,
+  },
+
+  ctaSeatText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: PALETTE.coralDark,
+    letterSpacing: -0.15,
+  },
+
+  ctaButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  homeButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  applyButton: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: PALETTE.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  applyButtonDisabled: {
+    backgroundColor: '#CBD5E1',
+  },
+
+  applyButtonText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.25,
+  },
 });
