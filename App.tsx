@@ -16,7 +16,11 @@ import type { ProgramDetail } from './src/screens/program/ProgramDetailScreen';
 import MapScreen from './src/screens/program/MapScreen';
 
 import ApplyScreen from './src/screens/application/ApplyScreen';
+import ApplicationFormScreen from './src/screens/application/ApplicationFormScreen';
+import type { ApplicationInfo } from './src/screens/application/ApplicationFormScreen';
 import PaymentScreen from './src/screens/application/PaymentScreen';
+import type { PaymentSummary } from './src/screens/application/PaymentScreen';
+import ApplicationCompleteScreen from './src/screens/application/ApplicationCompleteScreen';
 import MyApplicationsScreen from './src/screens/application/MyApplicationsScreen';
 
 import CommunityScreen from './src/screens/community/CommunityScreen';
@@ -66,6 +70,9 @@ type Screen =
   | 'recommend'
   | 'recommendation'
   | 'apply'
+  | 'applicationForm'
+  | 'payment'
+  | 'applicationComplete'
   | 'community'
   | 'my'
   | 'communityWrite'
@@ -77,7 +84,6 @@ type Screen =
   | 'myApplications'
   | 'aiReport'
   | 'search'
-  | 'payment'
   | 'savedList'
   | 'map'
   | 'myCommunity'
@@ -164,10 +170,17 @@ export default function App() {
   const [selectedProgram, setSelectedProgram] = useState<ProgramDetail | null>(null);
   const [programDetailBackScreen, setProgramDetailBackScreen] =
     useState<Screen>('recommendation');
+
+  const [applicationInfo, setApplicationInfo] =
+    useState<ApplicationInfo | null>(null);
+  const [paymentSummary, setPaymentSummary] =
+    useState<PaymentSummary | null>(null);
+
   const [searchState, setSearchState] = useState<SearchScreenState>({
     query: '',
     searched: false,
   });
+
   const [editUserName, setEditUserName] = useState<string>('');
 
   const handleSplashFinish = () => {
@@ -188,7 +201,18 @@ export default function App() {
   const handleReset = () => {
     logout();
     clearChildProfile();
+    setSelectedProgram(null);
+    setApplicationInfo(null);
+    setPaymentSummary(null);
+    setSearchState({ query: '', searched: false });
     setTimeout(() => setCurrentScreen('splash'), 100);
+  };
+
+  const handleGoHome = () => {
+    setSelectedProgram(null);
+    setApplicationInfo(null);
+    setPaymentSummary(null);
+    setCurrentScreen('home');
   };
 
   return (
@@ -325,6 +349,8 @@ export default function App() {
               onProgramClick={(program) => {
                 setSelectedProgram(program);
                 setProgramDetailBackScreen('recommendation');
+                setApplicationInfo(null);
+                setPaymentSummary(null);
                 setCurrentScreen('programDetail');
               }}
             />
@@ -341,6 +367,10 @@ export default function App() {
               onLogout={() => {
                 logout();
                 clearChildProfile();
+                setSelectedProgram(null);
+                setApplicationInfo(null);
+                setPaymentSummary(null);
+                setSearchState({ query: '', searched: false });
                 setTimeout(() => setCurrentScreen('splash'), 100);
               }}
               onRegisterChild={() => setCurrentScreen('child')}
@@ -405,14 +435,58 @@ export default function App() {
               }}
               onApply={(program) => {
                 setSelectedProgram(program);
-                setCurrentScreen('payment');
+                setApplicationInfo(null);
+                setPaymentSummary(null);
+                setCurrentScreen('applicationForm');
               }}
-              onGoHome={() => {
-                setSelectedProgram(null);
-                setCurrentScreen('home');
-              }}
+              onGoHome={handleGoHome}
             />
           )}
+
+          {currentScreen === 'applicationForm' && selectedProgram && (
+            <ApplicationFormScreen
+              program={selectedProgram}
+              initialChildName={childProfile?.name ?? ''}
+              initialParentName="정아름"
+              onBack={() => setCurrentScreen('programDetail')}
+              onNext={(info) => {
+                setApplicationInfo(info);
+                setCurrentScreen('payment');
+              }}
+              onGoHome={handleGoHome}
+            />
+          )}
+
+          {currentScreen === 'payment' && selectedProgram && applicationInfo && (
+            <PaymentScreen
+              program={selectedProgram}
+              applicationInfo={applicationInfo}
+              onBack={() => setCurrentScreen('applicationForm')}
+              onComplete={(summary) => {
+                setPaymentSummary(summary);
+                setCurrentScreen('applicationComplete');
+              }}
+              onGoHome={handleGoHome}
+            />
+          )}
+
+          {currentScreen === 'applicationComplete' &&
+            selectedProgram &&
+            applicationInfo &&
+            paymentSummary && (
+              <ApplicationCompleteScreen
+                program={selectedProgram}
+                applicationInfo={applicationInfo}
+                paymentSummary={paymentSummary}
+                onGoApplications={() => {
+                  setSelectedProgram(null);
+                  setApplicationInfo(null);
+                  setPaymentSummary(null);
+                  setCurrentScreen('myApplications');
+                }}
+                onGoHome={handleGoHome}
+              />
+            )}
 
           {currentScreen === 'notification' && (
             <NotificationScreen onBack={() => setCurrentScreen('home')} />
@@ -464,19 +538,9 @@ export default function App() {
               onSelectProgram={(program) => {
                 setSelectedProgram(program);
                 setProgramDetailBackScreen('search');
+                setApplicationInfo(null);
+                setPaymentSummary(null);
                 setCurrentScreen('programDetail');
-              }}
-            />
-          )}
-
-          {currentScreen === 'payment' && selectedProgram && (
-            <PaymentScreen
-              program={selectedProgram}
-              onBack={() => setCurrentScreen('programDetail')}
-              onComplete={() => setCurrentScreen('myApplications')}
-              onGoHome={() => {
-                setSelectedProgram(null);
-                setCurrentScreen('home');
               }}
             />
           )}
@@ -499,6 +563,10 @@ export default function App() {
               onLogout={() => {
                 logout();
                 clearChildProfile();
+                setSelectedProgram(null);
+                setApplicationInfo(null);
+                setPaymentSummary(null);
+                setSearchState({ query: '', searched: false });
                 setTimeout(() => setCurrentScreen('splash'), 100);
               }}
             />
