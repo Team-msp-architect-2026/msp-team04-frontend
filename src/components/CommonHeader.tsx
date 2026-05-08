@@ -51,18 +51,22 @@ export default function CommonHeader({
                 style={styles.iconButton}
                 onPress={onSearchPress}
                 activeOpacity={0.75}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="search-outline" size={18} color="#5F6672" />
+                <Ionicons name="search-outline" size={23} color="#5F6672" />
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.iconButton}
                 onPress={onNotificationPress}
                 activeOpacity={0.75}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="notifications-outline" size={18} color="#5F6672" />
+                <Ionicons
+                  name="notifications-outline"
+                  size={23}
+                  color="#5F6672"
+                />
                 {unreadCount > 0 && <View style={styles.badge} />}
               </TouchableOpacity>
             </>
@@ -73,9 +77,9 @@ export default function CommonHeader({
               style={styles.iconButton}
               onPress={onSettingsPress}
               activeOpacity={0.75}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="settings-outline" size={19} color="#5F6672" />
+              <Ionicons name="settings-outline" size={24} color="#5F6672" />
             </TouchableOpacity>
           )}
         </View>
@@ -90,10 +94,10 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    minHeight: 40,
+    minHeight: 52,
     paddingHorizontal: 20,
-    paddingTop: 0,
-    paddingBottom: 4,
+    paddingTop: 2,
+    paddingBottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -110,30 +114,30 @@ const styles = StyleSheet.create({
   rightArea: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 0,
+    gap: 2,
     marginLeft: 12,
   },
 
   logo: {
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 19,
+    lineHeight: 24,
     fontWeight: '800',
     letterSpacing: -0.6,
     color: '#F2CF52',
   },
 
   title: {
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: '700',
-    letterSpacing: -0.3,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '800',
+    letterSpacing: -0.35,
     color: '#191919',
   },
 
   iconButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -141,13 +145,13 @@ const styles = StyleSheet.create({
 
   badge: {
     position: 'absolute',
-    top: 4,
-    right: 3,
-    width: 7,
-    height: 7,
+    top: 8,
+    right: 7,
+    width: 8,
+    height: 8,
     borderRadius: 4,
     backgroundColor: '#FF7B72',
-    borderWidth: 1.4,
+    borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
 });
