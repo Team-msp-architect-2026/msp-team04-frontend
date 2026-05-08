@@ -15,7 +15,7 @@ import ProgramDetailScreen from './src/screens/program/ProgramDetailScreen';
 import type { ProgramDetail } from './src/screens/program/ProgramDetailScreen';
 import MapScreen from './src/screens/program/MapScreen';
 
-import ApplyScreen from './src/screens/application/ApplyScreen';
+import RecruitingScreen from './src/screens/recruiting/RecruitingScreen';
 import ApplicationFormScreen from './src/screens/application/ApplicationFormScreen';
 import type { ApplicationInfo } from './src/screens/application/ApplicationFormScreen';
 import PaymentScreen from './src/screens/application/PaymentScreen';
@@ -388,11 +388,20 @@ export default function App() {
             />
           )}
 
+
+
           {currentScreen === 'apply' && (
-            <ApplyScreen
+            <RecruitingScreen
               onTabChange={(tab) => setCurrentScreen(tab as Screen)}
               onSearchClick={() => setCurrentScreen('search')}
               onNotificationClick={() => setCurrentScreen('notification')}
+              onProgramClick={(program) => {
+                setSelectedProgram(program);
+                setProgramDetailBackScreen('apply');
+                setApplicationInfo(null);
+                setPaymentSummary(null);
+                setCurrentScreen('programDetail');
+              }}
             />
           )}
 
