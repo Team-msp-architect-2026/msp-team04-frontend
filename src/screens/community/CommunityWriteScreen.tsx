@@ -1,285 +1,678 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../constants';
 
-export interface WritePostData {
-  category: string;
-  title: string;
-  content: string;
-  tags: string[];
-  childAge: string;
-}
+type CategoryKey = 'education' | 'care' | 'review' | 'info' | 'question';
 
 interface CommunityWriteScreenProps {
   onBack: () => void;
-  onSubmit?: (post: WritePostData) => void;
+  onSubmit: () => void;
 }
 
-const CATEGORIES = ['후기', '질문', '정보', '교육', '돌봄'];
-const CHILD_AGE_OPTIONS = ['1세', '2세', '3세', '4세', '5세', '6세', '7세', '8세', '9세', '10세 이상'];
-const SUGGESTED_TAGS = ['미술', '코딩', '영어', '수학', '돌봄', '지원금', '분리불안', '소근육발달', '교육고민', '맞벌이', '후기'];
+const PALETTE = {
+  text: '#111827',
+  subText: '#64748B',
+  muted: '#94A3B8',
+  border: '#E8EDF3',
+  softBorder: '#EEF2F6',
+  bg: '#FFFFFF',
+  softBg: '#F8FAFC',
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  후기: { bg: '#FFF3CD', text: '#d4a800', border: '#FFE082' },
-  질문: { bg: '#EBF8FF', text: '#2B6CB0', border: '#BEE3F8' },
-  정보: { bg: '#F0FFF4', text: '#276749', border: '#9AE6B4' },
-  교육: { bg: '#FAF5FF', text: '#6B46C1', border: '#D6BCFA' },
-  돌봄: { bg: '#FFF5F5', text: '#C53030', border: '#FEB2B2' },
+  primary: '#F6DD8F',
+  primaryDark: '#8A6400',
+  primarySoft: '#FFF9E8',
+  primaryBorder: '#F3E3A3',
+
+  coral: '#E58B84',
+  coralDark: '#B85A52',
+  coralSoft: '#FFF7F5',
+  coralBorder: '#F4DAD5',
+
+  blue: '#78A9FF',
+  blueDark: '#3E6DCC',
+  blueSoft: '#F3F7FF',
+  blueBorder: '#DCE7FF',
+
+  green: '#35A66A',
+  greenDark: '#228251',
+  greenSoft: '#F2FBF6',
+  greenBorder: '#D5F0DE',
+
+  purple: '#8B7CF6',
+  purpleDark: '#5F52C8',
+  purpleSoft: '#F5F3FF',
+  purpleBorder: '#E4DFFF',
+
+  black: '#111827',
 };
 
-export default function CommunityWriteScreen({ onBack, onSubmit }: CommunityWriteScreenProps) {
-  const [category, setCategory] = useState('');
+const CATEGORIES: {
+  key: CategoryKey;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: 'education',
+    label: '교육',
+    description: '수업, 학습, 프로그램 고민',
+  },
+  {
+    key: 'care',
+    label: '돌봄',
+    description: '하원, 돌봄 공백, 맞벌이 고민',
+  },
+  {
+    key: 'review',
+    label: '후기',
+    description: '직접 경험한 프로그램 후기',
+  },
+  {
+    key: 'info',
+    label: '정보공유',
+    description: '지원금, 무료 프로그램, 지역 정보',
+  },
+  {
+    key: 'question',
+    label: '질문',
+    description: '다른 부모님께 묻고 싶은 내용',
+  },
+];
+
+const AGE_OPTIONS = ['공통', '만 3~4세', '만 5~6세', '초등 저학년', '초등 고학년'];
+
+const TAG_SUGGESTIONS = [
+  '무료',
+  '공공',
+  '소규모',
+  '맞벌이',
+  '돌봄',
+  '미술',
+  '코딩',
+  '영어',
+];
+
+export default function CommunityWriteScreen({
+  onBack,
+  onSubmit,
+}: CommunityWriteScreenProps) {
+  const [category, setCategory] = useState<CategoryKey>('question');
+  const [ageGroup, setAgeGroup] = useState('공통');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [customTag, setCustomTag] = useState('');
-  const [childAge, setChildAge] = useState('');
-  const [showAgeDropdown, setShowAgeDropdown] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-  const canSubmit = category && title.trim() && content.trim();
+  const canSubmit = title.trim().length >= 3 && content.trim().length >= 10;
+
+  const selectedCategory = useMemo(
+    () => CATEGORIES.find(item => item.key === category),
+    [category],
+  );
 
   const toggleTag = (tag: string) => {
-    setTags(prev =>
-      prev.includes(tag) ? prev.filter(t => t !== tag) : prev.length < 5 ? [...prev, tag] : prev
+    setSelectedTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(item => item !== tag)
+        : prev.length >= 5
+          ? prev
+          : [...prev, tag],
     );
   };
 
-  const addCustomTag = () => {
-    const t = customTag.trim().replace(/^#/, '');
-    if (t && !tags.includes(t) && tags.length < 5) {
-      setTags(prev => [...prev, t]);
-      setCustomTag('');
-    }
-  };
-
   const handleSubmit = () => {
-    if (!canSubmit) return;
-    onSubmit?.({ category, title, content, tags, childAge });
-    onBack();
+    if (!canSubmit) {
+      return;
+    }
+
+    onSubmit();
   };
 
   return (
-    <SafeAreaView style={s.root}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={onBack}>
-          <Ionicons name="arrow-back" size={22} color="#1A1A1A" />
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>글쓰기</Text>
-        <TouchableOpacity
-          style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]}
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-        >
-          <Text style={[s.submitBtnText, !canSubmit && s.submitBtnTextDisabled]}>등록</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-
-        {/* 카테고리 */}
-        <View style={s.section}>
-          <Text style={s.label}>카테고리 *</Text>
-          <View style={s.categoryRow}>
-            {CATEGORIES.map(cat => {
-              const color = CATEGORY_COLORS[cat];
-              const selected = category === cat;
-              return (
-                <TouchableOpacity
-                  key={cat}
-                  style={[
-                    s.categoryBtn,
-                    selected && { backgroundColor: color.bg, borderColor: color.border },
-                  ]}
-                  onPress={() => setCategory(cat)}
-                >
-                  <Text style={[s.categoryBtnText, selected && { color: color.text }]}>{cat}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* 아이 나이 */}
-        <View style={s.section}>
-          <Text style={s.label}>아이 나이 (선택)</Text>
+    <SafeAreaView style={styles.root} edges={['top']}>
+      <KeyboardAvoidingView
+        style={styles.keyboardRoot}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.header}>
           <TouchableOpacity
-            style={s.dropdown}
-            onPress={() => setShowAgeDropdown(!showAgeDropdown)}
+            style={styles.headerButton}
+            onPress={onBack}
+            activeOpacity={0.75}
+            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
           >
-            <Text style={[s.dropdownText, !childAge && s.dropdownPlaceholder]}>
-              {childAge || '아이 나이를 선택하세요'}
-            </Text>
-            <Ionicons name={showAgeDropdown ? 'chevron-up' : 'chevron-down'} size={16} color="#888" />
+            <Ionicons name="arrow-back" size={22} color={PALETTE.text} />
           </TouchableOpacity>
-          {showAgeDropdown && (
-            <View style={s.dropdownList}>
-              {CHILD_AGE_OPTIONS.map(age => (
-                <TouchableOpacity
-                  key={age}
-                  style={s.dropdownItem}
-                  onPress={() => { setChildAge(age); setShowAgeDropdown(false); }}
-                >
-                  <Text style={[s.dropdownItemText, childAge === age && s.dropdownItemTextSelected]}>
-                    {age}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
 
-        {/* 제목 */}
-        <View style={s.section}>
-          <Text style={s.label}>제목 *</Text>
-          <TextInput
-            style={s.input}
-            placeholder="제목을 입력하세요"
-            placeholderTextColor="#aaa"
-            value={title}
-            onChangeText={setTitle}
-            maxLength={50}
-          />
-          <Text style={s.charCount}>{title.length}/50</Text>
-        </View>
-
-        {/* 내용 */}
-        <View style={s.section}>
-          <Text style={s.label}>내용 *</Text>
-          <TextInput
-            style={s.textarea}
-            placeholder="다른 부모님들과 나누고 싶은 이야기를 적어주세요. 경험, 후기, 질문 모두 환영해요 😊"
-            placeholderTextColor="#aaa"
-            value={content}
-            onChangeText={setContent}
-            multiline
-            numberOfLines={8}
-            textAlignVertical="top"
-          />
-          <Text style={s.charCount}>{content.length}자</Text>
-        </View>
-
-        {/* 태그 */}
-        <View style={s.section}>
-          <Text style={s.label}>태그 (최대 5개)</Text>
-
-          {/* 선택된 태그 */}
-          {tags.length > 0 && (
-            <View style={s.tagRow}>
-              {tags.map(tag => (
-                <TouchableOpacity
-                  key={tag}
-                  style={s.tagSelected}
-                  onPress={() => toggleTag(tag)}
-                >
-                  <Text style={s.tagSelectedText}>#{tag}</Text>
-                  <Ionicons name="close" size={12} color="#d4a800" />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {/* 추천 태그 */}
-          <View style={s.tagRow}>
-            {SUGGESTED_TAGS.filter(t => !tags.includes(t)).map(tag => (
-              <TouchableOpacity
-                key={tag}
-                style={[s.tagBtn, tags.length >= 5 && s.tagBtnDisabled]}
-                onPress={() => toggleTag(tag)}
-                disabled={tags.length >= 5}
-              >
-                <Text style={s.tagBtnText}>#{tag}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* 직접 입력 */}
-          <View style={s.customTagRow}>
-            <TextInput
-              style={s.customTagInput}
-              placeholder="직접 입력..."
-              placeholderTextColor="#aaa"
-              value={customTag}
-              onChangeText={setCustomTag}
-              onSubmitEditing={addCustomTag}
-            />
-            <TouchableOpacity
-              style={[s.customTagBtn, (!customTag.trim() || tags.length >= 5) && s.customTagBtnDisabled]}
-              onPress={addCustomTag}
-              disabled={!customTag.trim() || tags.length >= 5}
-            >
-              <Text style={s.customTagBtnText}>추가</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* 안내 문구 */}
-        <View style={s.notice}>
-          <Text style={s.noticeText}>
-            📌 개인정보(이름, 연락처, 기관명 등)는 익명으로 표기해주세요.{'\n'}
-            커뮤니티 가이드라인을 위반하는 게시물은 삭제될 수 있습니다.
+          <Text style={styles.headerTitle} pointerEvents="none">
+            글쓰기
           </Text>
+
+          <TouchableOpacity
+            style={styles.headerSubmitButton}
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.headerSubmitText,
+                !canSubmit && styles.headerSubmitTextDisabled,
+              ]}
+            >
+              등록
+            </Text>
+          </TouchableOpacity>
         </View>
 
-      </ScrollView>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>카테고리</Text>
+
+            <View style={styles.categoryList}>
+              {CATEGORIES.map(item => {
+                const isActive = category === item.key;
+
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={[
+                      styles.categoryCard,
+                      isActive && styles.categoryCardActive,
+                    ]}
+                    onPress={() => setCategory(item.key)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.categoryTextBox}>
+                      <Text
+                        style={[
+                          styles.categoryLabel,
+                          isActive && styles.categoryLabelActive,
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                      <Text style={styles.categoryDescription}>
+                        {item.description}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.radioCircle,
+                        isActive && styles.radioCircleActive,
+                      ]}
+                    >
+                      {isActive && <View style={styles.radioInner} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>아이 연령</Text>
+
+            <View style={styles.ageChipRow}>
+              {AGE_OPTIONS.map(option => {
+                const isActive = ageGroup === option;
+
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    style={[styles.ageChip, isActive && styles.ageChipActive]}
+                    onPress={() => setAgeGroup(option)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.ageChipText,
+                        isActive && styles.ageChipTextActive,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>제목</Text>
+
+            <TextInput
+              style={styles.titleInput}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="제목을 입력해주세요"
+              placeholderTextColor="#A8B0BD"
+              maxLength={60}
+            />
+
+            <Text style={styles.inputCount}>{title.length}/60</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>내용</Text>
+
+            <TextInput
+              style={styles.contentInput}
+              value={content}
+              onChangeText={setContent}
+              placeholder={`예: ${selectedCategory?.description ?? '궁금한 내용을'} 편하게 적어주세요.`}
+              placeholderTextColor="#A8B0BD"
+              multiline
+              textAlignVertical="top"
+              maxLength={1000}
+            />
+
+            <Text style={styles.inputCount}>{content.length}/1000</Text>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.sectionTitleNoMargin}>태그</Text>
+              <Text style={styles.sectionHint}>최대 5개</Text>
+            </View>
+
+            <View style={styles.tagChipRow}>
+              {TAG_SUGGESTIONS.map(tag => {
+                const isActive = selectedTags.includes(tag);
+
+                return (
+                  <TouchableOpacity
+                    key={tag}
+                    style={[styles.tagChip, isActive && styles.tagChipActive]}
+                    onPress={() => toggleTag(tag)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.tagChipText,
+                        isActive && styles.tagChipTextActive,
+                      ]}
+                    >
+                      #{tag}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.noticeCard}>
+            <Ionicons
+              name="information-circle-outline"
+              size={17}
+              color={PALETTE.primaryDark}
+            />
+            <Text style={styles.noticeText}>
+              개인정보, 연락처, 기관 담당자 실명 등은 공개하지 않도록 주의해주세요.
+            </Text>
+          </View>
+
+          <View style={styles.bottomSpace} />
+        </ScrollView>
+
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            activeOpacity={0.86}
+          >
+            <Text
+              style={[
+                styles.submitButtonText,
+                !canSubmit && styles.submitButtonTextDisabled,
+              ]}
+            >
+              등록하기
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#fff' },
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: PALETTE.bg,
+  },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 56, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  backBtn: { width: 40, height: 40, justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A' },
-  submitBtn: { backgroundColor: colors.primary.default, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20 },
-  submitBtnDisabled: { backgroundColor: '#E5E7EB' },
-  submitBtnText: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
-  submitBtnTextDisabled: { color: '#aaa' },
+  keyboardRoot: {
+    flex: 1,
+  },
 
-  scroll: { padding: 16, paddingBottom: 40 },
+  header: {
+    height: 52,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: PALETTE.bg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
 
-  section: { marginBottom: 20 },
-  label: { fontSize: 12, fontWeight: '600', color: '#888', marginBottom: 8 },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
 
-  categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  categoryBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F7F8FA', borderWidth: 2, borderColor: 'transparent' },
-  categoryBtnText: { fontSize: 13, fontWeight: '600', color: '#A0AEC0' },
+  headerTitle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '800',
+    color: PALETTE.text,
+    letterSpacing: -0.3,
+    zIndex: 1,
+  },
 
-  dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 44, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F9F9F9', paddingHorizontal: 14 },
-  dropdownText: { fontSize: 14, color: '#1A1A1A', fontWeight: '500' },
-  dropdownPlaceholder: { color: '#aaa' },
-  dropdownList: { marginTop: 4, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#fff', overflow: 'hidden' },
-  dropdownItem: { height: 44, paddingHorizontal: 14, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  dropdownItemText: { fontSize: 14, color: '#374151' },
-  dropdownItemTextSelected: { color: '#d4a800', fontWeight: '600' },
+  headerSubmitButton: {
+    minWidth: 44,
+    height: 34,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
 
-  input: { height: 44, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F9F9F9', paddingHorizontal: 14, fontSize: 14, color: '#1A1A1A' },
-  textarea: { borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F9F9F9', paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#1A1A1A', minHeight: 160, lineHeight: 22 },
-  charCount: { fontSize: 11, color: '#aaa', textAlign: 'right', marginTop: 4 },
+  headerSubmitText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: PALETTE.black,
+  },
 
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  tagSelected: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF3CD', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#FFE082' },
-  tagSelectedText: { fontSize: 12, fontWeight: '600', color: '#d4a800' },
-  tagBtn: { backgroundColor: '#F7F8FA', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#E5E7EB' },
-  tagBtnDisabled: { opacity: 0.4 },
-  tagBtnText: { fontSize: 12, color: '#718096' },
+  headerSubmitTextDisabled: {
+    color: '#CBD5E1',
+  },
 
-  customTagRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  customTagInput: { flex: 1, height: 40, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F9F9F9', paddingHorizontal: 14, fontSize: 14, color: '#1A1A1A' },
-  customTagBtn: { backgroundColor: colors.primary.default, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  customTagBtnDisabled: { backgroundColor: '#E5E7EB' },
-  customTagBtnText: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
+  scroll: {
+    flex: 1,
+  },
 
-  notice: { backgroundColor: '#F9F9F9', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E5E7EB' },
-  noticeText: { fontSize: 12, color: '#888', lineHeight: 20 },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 118,
+  },
+
+  section: {
+    marginBottom: 30,
+  },
+
+  sectionTitleRow: {
+    marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.2,
+    marginBottom: 14,
+  },
+
+  sectionTitleNoMargin: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.2,
+  },
+
+  sectionHint: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  categoryList: {
+    gap: 10,
+  },
+
+  categoryCard: {
+    minHeight: 66,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  categoryCardActive: {
+    borderColor: PALETTE.primaryBorder,
+    backgroundColor: PALETTE.primarySoft,
+  },
+
+  categoryTextBox: {
+    flex: 1,
+  },
+
+  categoryLabel: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: PALETTE.text,
+  },
+
+  categoryLabelActive: {
+    color: PALETTE.primaryDark,
+  },
+
+  categoryDescription: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: PALETTE.muted,
+    lineHeight: 18,
+  },
+
+  radioCircle: {
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    borderWidth: 1.6,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+
+  radioCircleActive: {
+    borderColor: PALETTE.black,
+  },
+
+  radioInner: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: PALETTE.black,
+  },
+
+  ageChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+
+  ageChip: {
+    height: 34,
+    paddingHorizontal: 13,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  ageChipActive: {
+    borderColor: PALETTE.primaryBorder,
+    backgroundColor: PALETTE.primarySoft,
+  },
+
+  ageChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: PALETTE.subText,
+  },
+
+  ageChipTextActive: {
+    color: PALETTE.primaryDark,
+  },
+
+  titleInput: {
+    height: 50,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    fontSize: 14,
+    fontWeight: '700',
+    color: PALETTE.text,
+  },
+
+  contentInput: {
+    minHeight: 180,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
+    fontSize: 14,
+    fontWeight: '600',
+    color: PALETTE.text,
+    lineHeight: 22,
+  },
+
+  inputCount: {
+    marginTop: 7,
+    alignSelf: 'flex-end',
+    fontSize: 11,
+    fontWeight: '700',
+    color: PALETTE.muted,
+  },
+
+  tagChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+
+  tagChip: {
+    height: 32,
+    paddingHorizontal: 11,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  tagChipActive: {
+    borderColor: PALETTE.primaryBorder,
+    backgroundColor: PALETTE.primarySoft,
+  },
+
+  tagChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: PALETTE.subText,
+  },
+
+  tagChipTextActive: {
+    color: PALETTE.primaryDark,
+  },
+
+  noticeCard: {
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: PALETTE.primaryBorder,
+    backgroundColor: PALETTE.primarySoft,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+
+  noticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 19,
+    fontWeight: '700',
+    color: PALETTE.primaryDark,
+  },
+
+  bottomSpace: {
+    height: 10,
+  },
+
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.softBorder,
+    backgroundColor: PALETTE.bg,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
+  },
+
+  submitButton: {
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: PALETTE.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  submitButtonDisabled: {
+    backgroundColor: '#E5E7EB',
+  },
+
+  submitButtonText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+
+  submitButtonTextDisabled: {
+    color: '#9CA3AF',
+  },
 });

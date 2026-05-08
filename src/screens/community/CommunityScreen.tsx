@@ -1,29 +1,32 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   ScrollView,
-  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import BottomTabBar from '../../components/BottomTabBar';
+
 import CommonHeader from '../../components/CommonHeader';
-import { colors } from '../../constants';
+import BottomTabBar from '../../components/BottomTabBar';
+
+type CategoryKey = 'all' | 'education' | 'care' | 'review' | 'info' | 'question';
 
 export interface Post {
   id: number;
-  author: string;
-  authorAvatar: string;
-  category: string;
-  title: string;
-  preview: string;
-  likes: number;
-  comments: number;
-  timeAgo: string;
-  isLiked: boolean;
+  category: CategoryKey;
+  categoryLabel: string;
   childAge: string;
+  title: string;
+  content: string;
+  author: string;
+  authorName?: string;
+  time: string;
+  createdAt: string;
+  commentCount: number;
+  likeCount: number;
+  liked?: boolean;
   tags: string[];
 }
 
@@ -35,140 +38,176 @@ interface CommunityScreenProps {
   onNotificationClick?: () => void;
 }
 
-const CATEGORIES = ['전체', '후기', '질문', '정보', '교육', '돌봄'];
+const PALETTE = {
+  text: '#111827',
+  subText: '#64748B',
+  muted: '#94A3B8',
+  border: '#E8EDF3',
+  softBorder: '#EEF2F6',
+  bg: '#FFFFFF',
+  softBg: '#F8FAFC',
 
-const AI_TOPICS = [
-  '소근육 발달',
-  '언어 자극',
-  '미술 놀이',
-  '분리불안',
-  '편식 해결',
-  '수면 교육',
-  '코딩 교육',
-  '영어 시작',
-];
+  primary: '#F6DD8F',
+  primaryDark: '#8A6400',
+  primarySoft: '#FFF9E8',
+  primaryBorder: '#F3E3A3',
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  후기: { bg: '#FFF3CD', text: '#d4a800' },
-  질문: { bg: '#EBF8FF', text: '#2B6CB0' },
-  정보: { bg: '#F0FFF4', text: '#276749' },
-  교육: { bg: '#FAF5FF', text: '#6B46C1' },
-  돌봄: { bg: '#FFF5F5', text: '#C53030' },
+  coral: '#E58B84',
+  coralDark: '#B85A52',
+  coralSoft: '#FFF7F5',
+  coralBorder: '#F4DAD5',
+
+  blue: '#78A9FF',
+  blueDark: '#3E6DCC',
+  blueSoft: '#F3F7FF',
+  blueBorder: '#DCE7FF',
+
+  green: '#35A66A',
+  greenDark: '#228251',
+  greenSoft: '#F2FBF6',
+  greenBorder: '#D5F0DE',
+
+  purple: '#8B7CF6',
+  purpleDark: '#5F52C8',
+  purpleSoft: '#F5F3FF',
+  purpleBorder: '#E4DFFF',
+
+  black: '#111827',
 };
 
-export const mockPosts: Post[] = [
+const CATEGORIES: { key: CategoryKey; label: string }[] = [
+  { key: 'all', label: '전체' },
+  { key: 'education', label: '교육' },
+  { key: 'care', label: '돌봄' },
+  { key: 'review', label: '후기' },
+  { key: 'info', label: '정보공유' },
+  { key: 'question', label: '질문' },
+];
+
+const CATEGORY_STYLES: Record<
+  Exclude<CategoryKey, 'all'>,
+  { bg: string; border: string; text: string }
+> = {
+  education: {
+    bg: PALETTE.primarySoft,
+    border: PALETTE.primaryBorder,
+    text: PALETTE.primaryDark,
+  },
+  care: {
+    bg: PALETTE.greenSoft,
+    border: PALETTE.greenBorder,
+    text: PALETTE.greenDark,
+  },
+  review: {
+    bg: PALETTE.purpleSoft,
+    border: PALETTE.purpleBorder,
+    text: PALETTE.purpleDark,
+  },
+  info: {
+    bg: PALETTE.blueSoft,
+    border: PALETTE.blueBorder,
+    text: PALETTE.blueDark,
+  },
+  question: {
+    bg: PALETTE.coralSoft,
+    border: PALETTE.coralBorder,
+    text: PALETTE.coralDark,
+  },
+};
+
+const POSTS: Post[] = [
   {
     id: 1,
-    author: '김○○ 부모님',
-    authorAvatar: '김',
-    category: '후기',
-    title: '창의력 미술 수업 3개월 후기예요 🎨',
-    preview: '처음엔 낯가림이 심했던 우리 아이가 이제는 수업 가는 날을 손꼽아 기다려요.',
-    likes: 47,
-    comments: 12,
-    timeAgo: '2시간 전',
-    isLiked: false,
-    childAge: '만 3세',
-    tags: ['미술', '소근육발달'],
+    category: 'review',
+    categoryLabel: '후기',
+    childAge: '만 5세',
+    title: '창의력 미술 수업 다녀온 후기 공유해요',
+    content:
+      '소규모라 아이가 덜 긴장했고, 선생님이 끝나고 짧게 피드백을 주셔서 좋았어요. 처음 미술 수업 찾는 분들께 추천해요.',
+    author: '민준맘',
+    authorName: '민준맘',
+    time: '방금 전',
+    createdAt: '방금 전',
+    commentCount: 12,
+    likeCount: 34,
+    liked: false,
+    tags: ['미술', '소규모', '강남'],
   },
   {
     id: 2,
-    author: '이○○ 부모님',
-    authorAvatar: '이',
-    category: '질문',
-    title: '만 4세 아이 영어 수업 시작 시기 어떻게 생각하세요?',
-    preview: '주변에서 너무 이르다는 말도 있고, 빨리 시작하는 게 좋다는 말도 있어서 고민이에요.',
-    likes: 23,
-    comments: 31,
-    timeAgo: '5시간 전',
-    isLiked: true,
-    childAge: '만 4세',
-    tags: ['영어', '교육고민'],
+    category: 'question',
+    categoryLabel: '질문',
+    childAge: '만 7세',
+    title: '초등 저학년 코딩 수업 시작해도 괜찮을까요?',
+    content:
+      '아이가 게임 만들기에 관심이 많아졌는데 아직 어려워하지 않을까 걱정돼요. 스크래치부터 시작하는 수업이면 괜찮을까요?',
+    author: '하준아빠',
+    authorName: '하준아빠',
+    time: '12분 전',
+    createdAt: '12분 전',
+    commentCount: 8,
+    likeCount: 19,
+    liked: true,
+    tags: ['코딩', '초등', '질문'],
   },
   {
     id: 3,
-    author: '박○○ 부모님',
-    authorAvatar: '박',
-    category: '정보',
-    title: '2025년 아이행복카드 지원금 총정리 💰',
-    preview: '많은 분들이 지원금 신청 방법을 물어보셔서 정리해봤어요.',
-    likes: 89,
-    comments: 24,
-    timeAgo: '1일 전',
-    isLiked: false,
-    childAge: '만 2세',
-    tags: ['지원금', '정보공유'],
+    category: 'care',
+    categoryLabel: '돌봄',
+    childAge: '만 4세',
+    title: '맞벌이 가정 돌봄 공백 줄이는 방법 있을까요',
+    content:
+      '퇴근 시간이 일정하지 않아서 하원 후 돌봄이 항상 고민이에요. 정부지원이나 지역 프로그램 같이 활용하신 분 계신가요?',
+    author: '서아맘',
+    authorName: '서아맘',
+    time: '35분 전',
+    createdAt: '35분 전',
+    commentCount: 15,
+    likeCount: 41,
+    liked: false,
+    tags: ['돌봄', '맞벌이', '지원'],
   },
   {
     id: 4,
-    author: '최○○ 부모님',
-    authorAvatar: '최',
-    category: '돌봄',
-    title: '방학 돌봄 공백 어떻게 해결하세요? 맞벌이 부모 고민',
-    preview: '여름방학이 다가오는데 아이 돌봄이 너무 걱정돼요.',
-    likes: 56,
-    comments: 41,
-    timeAgo: '1일 전',
-    isLiked: true,
-    childAge: '만 7세',
-    tags: ['돌봄', '맞벌이'],
+    category: 'education',
+    categoryLabel: '교육',
+    childAge: '만 6세',
+    title: '영어 말하기 수업 고를 때 뭘 봐야 할까요?',
+    content:
+      '파닉스는 조금 하는데 말하기는 아직 자신감이 없어요. 원어민 수업보다 아이 성향에 맞는 소그룹이 나을지 고민입니다.',
+    author: '유진맘',
+    authorName: '유진맘',
+    time: '1시간 전',
+    createdAt: '1시간 전',
+    commentCount: 6,
+    likeCount: 23,
+    liked: false,
+    tags: ['영어', '소그룹', '말하기'],
   },
   {
     id: 5,
-    author: '정○○ 부모님',
-    authorAvatar: '정',
-    category: '후기',
-    title: '강남구 구립 창의교실 등록했어요! 솔직 후기 🏫',
-    preview: 'MoMent 추천으로 등록하게 됐는데 정말 만족스럽네요.',
-    likes: 103,
-    comments: 18,
-    timeAgo: '2일 전',
-    isLiked: false,
-    childAge: '만 6세',
-    tags: ['창의력', '공공프로그램'],
+    category: 'info',
+    categoryLabel: '정보공유',
+    childAge: '공통',
+    title: '강남구 무료 공공 프로그램 모집 열렸어요',
+    content:
+      '이번 주부터 구립 창의교실 접수 시작했더라고요. 무료라 경쟁이 있을 것 같아서 필요한 분들은 빨리 확인해보세요.',
+    author: '정보요정',
+    authorName: '정보요정',
+    time: '2시간 전',
+    createdAt: '2시간 전',
+    commentCount: 21,
+    likeCount: 68,
+    liked: true,
+    tags: ['무료', '공공', '강남구'],
   },
-  {
-    id: 6,
-    author: '한○○ 부모님',
-    authorAvatar: '한',
-    category: '교육',
-    title: '코딩 교육, 초등 1학년도 괜찮을까요?',
-    preview: '요즘 코딩 교육이 필수라는 말이 많은데 너무 이른 건 아닌지 걱정돼요.',
-    likes: 31,
-    comments: 22,
-    timeAgo: '2일 전',
-    isLiked: false,
-    childAge: '만 7세',
-    tags: ['코딩', '교육'],
-  },
-  {
-    id: 7,
-    author: '오○○ 부모님',
-    authorAvatar: '오',
-    category: '정보',
-    title: '아이돌봄 서비스 신청 꿀팁 총정리 📝',
-    preview: '1년째 이용 중인데 처음에 몰라서 고생했던 것들 공유할게요.',
-    likes: 134,
-    comments: 47,
-    timeAgo: '3일 전',
-    isLiked: false,
-    childAge: '만 5세',
-    tags: ['아이돌봄', '꿀팁'],
-  },
-  {
-    id: 8,
-    author: '윤○○ 부모님',
-    authorAvatar: '윤',
-    category: '후기',
-    title: '온라인 코딩 수업 vs 오프라인 학원 비교 후기',
-    preview: '두 곳 다 3개월씩 다녀본 솔직 비교예요.',
-    likes: 78,
-    comments: 35,
-    timeAgo: '4일 전',
-    isLiked: true,
-    childAge: '만 9세',
-    tags: ['코딩', '비교후기'],
-  },
+];
+
+const POPULAR_TOPICS = [
+  '무료 공공 프로그램',
+  '소규모 미술 수업',
+  '맞벌이 돌봄',
+  '초등 코딩',
 ];
 
 export default function CommunityScreen({
@@ -178,30 +217,59 @@ export default function CommunityScreen({
   onSearchClick,
   onNotificationClick,
 }: CommunityScreenProps) {
-  const [selectedCategory, setSelectedCategory] = useState('전체');
-  const [posts, setPosts] = useState(mockPosts);
+  const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
+  const [likedPostIds, setLikedPostIds] = useState<number[]>(
+    POSTS.filter(post => post.liked).map(post => post.id),
+  );
+
+  const filteredPosts = useMemo(() => {
+    if (activeCategory === 'all') {
+      return POSTS;
+    }
+
+    return POSTS.filter(post => post.category === activeCategory);
+  }, [activeCategory]);
+
+  const popularPosts = useMemo(() => {
+    return [...POSTS]
+      .sort(
+        (a, b) =>
+          b.likeCount + b.commentCount - (a.likeCount + a.commentCount),
+      )
+      .slice(0, 3);
+  }, []);
 
   const toggleLike = (postId: number) => {
-    setPosts(prev =>
-      prev.map(post =>
-        post.id === postId
-          ? {
-              ...post,
-              isLiked: !post.isLiked,
-              likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-            }
-          : post,
-      ),
+    setLikedPostIds(prev =>
+      prev.includes(postId)
+        ? prev.filter(id => id !== postId)
+        : [...prev, postId],
     );
   };
 
-  const filteredPosts =
-    selectedCategory === '전체'
-      ? posts
-      : posts.filter(post => post.category === selectedCategory);
+  const getLikeCount = (post: Post) => {
+    const originallyLiked = !!post.liked;
+    const currentlyLiked = likedPostIds.includes(post.id);
+
+    if (originallyLiked === currentlyLiked) {
+      return post.likeCount;
+    }
+
+    return currentlyLiked ? post.likeCount + 1 : Math.max(post.likeCount - 1, 0);
+  };
+
+  const getPostWithCurrentLike = (post: Post): Post => {
+    const liked = likedPostIds.includes(post.id);
+
+    return {
+      ...post,
+      liked,
+      likeCount: getLikeCount(post),
+    };
+  };
 
   return (
-    <View style={s.root}>
+    <View style={styles.root}>
       <CommonHeader
         variant="community"
         unreadCount={3}
@@ -209,135 +277,286 @@ export default function CommunityScreen({
         onNotificationPress={onNotificationClick}
       />
 
-      <FlatList
-        data={filteredPosts}
-        keyExtractor={item => String(item.id)}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={s.listContent}
-        ListHeaderComponent={() => (
-          <View>
-
-            <View style={s.aiTopicBox}>
-              <View style={s.aiTopicHeader}>
-                <Ionicons name="trending-up" size={14} color="#3182CE" />
-                <Text style={s.aiTopicTitle}>AI 이번 주 인기 토픽</Text>
-              </View>
-
-              <View style={s.aiTopicRow}>
-                {AI_TOPICS.map(topic => (
-                  <View key={topic} style={s.aiTopicChip}>
-                    <Text style={s.aiTopicChipText}># {topic}</Text>
-                  </View>
-                ))}
-              </View>
+      >
+        <View style={styles.topicSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>요즘 많이 보는 주제</Text>
+            <View style={styles.sectionHintBadge}>
+              <Text style={styles.sectionHint}>AI 추천</Text>
             </View>
+          </View>
 
+          <View style={styles.topicCard}>
+            <View style={styles.topicChipRow}>
+              {POPULAR_TOPICS.map(topic => (
+                <View key={topic} style={styles.topicChip}>
+                  <Text style={styles.topicChipText}>{topic}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.popularSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>커뮤니티 인기글 TOP 3</Text>
+            <Text style={styles.sectionSubHint}>공감·댓글 기준</Text>
+          </View>
+
+          <View style={styles.popularList}>
+            {popularPosts.map((post, index) => {
+              const categoryStyle =
+                CATEGORY_STYLES[post.category as Exclude<CategoryKey, 'all'>];
+
+              return (
+                <TouchableOpacity
+                  key={post.id}
+                  style={styles.popularCard}
+                  onPress={() => onPostClick(getPostWithCurrentLike(post))}
+                  activeOpacity={0.84}
+                >
+                  <View style={styles.popularContent}>
+                    <View style={styles.popularMetaRow}>
+                      <View style={styles.popularMetaLeft}>
+                        <View
+                          style={[
+                            styles.topBadge,
+                            index === 0 && styles.topBadgeFirst,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.topBadgeText,
+                              index === 0 && styles.topBadgeTextFirst,
+                            ]}
+                          >
+                            TOP {index + 1}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.smallCategoryBadge,
+                            {
+                              backgroundColor: categoryStyle.bg,
+                              borderColor: categoryStyle.border,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.smallCategoryText,
+                              { color: categoryStyle.text },
+                            ]}
+                          >
+                            {post.categoryLabel}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.popularTime}>{post.time}</Text>
+                    </View>
+
+                    <Text style={styles.popularTitle} numberOfLines={1}>
+                      {post.title}
+                    </Text>
+
+                    <View style={styles.popularStatRow}>
+                      <View style={styles.popularStatItem}>
+                        <Ionicons
+                          name="heart-outline"
+                          size={13}
+                          color={PALETTE.muted}
+                        />
+                        <Text style={styles.popularStatText}>
+                          {getLikeCount(post)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.popularStatItem}>
+                        <Ionicons
+                          name="chatbubble-outline"
+                          size={12}
+                          color={PALETTE.muted}
+                        />
+                        <Text style={styles.popularStatText}>
+                          {post.commentCount}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.allPostSection}>
+          <View style={styles.listHeader}>
+            <Text style={styles.listTitle}>커뮤니티 전체글</Text>
+            <Text style={styles.listCount}>{filteredPosts.length}개</Text>
+          </View>
+
+          <View style={styles.categorySection}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={s.categoryScroll}
-              contentContainerStyle={s.categoryContent}
+              contentContainerStyle={styles.categoryContent}
             >
-              {CATEGORIES.map(cat => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[
-                    s.categoryBtn,
-                    selectedCategory === cat && s.categoryBtnActive,
-                  ]}
-                  onPress={() => setSelectedCategory(cat)}
-                >
-                  <Text
+              {CATEGORIES.map(category => {
+                const isActive = activeCategory === category.key;
+
+                return (
+                  <TouchableOpacity
+                    key={category.key}
                     style={[
-                      s.categoryBtnText,
-                      selectedCategory === cat && s.categoryBtnTextActive,
+                      styles.categoryChip,
+                      isActive && styles.categoryChipActive,
                     ]}
+                    onPress={() => setActiveCategory(category.key)}
+                    activeOpacity={0.78}
                   >
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        isActive && styles.categoryTextActive,
+                      ]}
+                    >
+                      {category.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </View>
-        )}
-        renderItem={({ item: post }) => {
-          const catColor =
-            CATEGORY_COLORS[post.category] ?? {
-              bg: '#F7F8FA',
-              text: '#718096',
-            };
 
-          return (
-            <TouchableOpacity
-              style={s.postCard}
-              onPress={() => onPostClick(post)}
-              activeOpacity={0.86}
-            >
-              <View style={s.postRow}>
-                <View style={s.avatar}>
-                  <Text style={s.avatarText}>{post.authorAvatar}</Text>
-                </View>
+          <View style={styles.postList}>
+            {filteredPosts.map(post => {
+              const categoryStyle =
+                post.category === 'all'
+                  ? CATEGORY_STYLES.info
+                  : CATEGORY_STYLES[post.category as Exclude<CategoryKey, 'all'>];
 
-                <View style={s.postContent}>
-                  <View style={s.postMeta}>
-                    <Text style={s.postAuthor}>{post.author}</Text>
+              const liked = likedPostIds.includes(post.id);
 
-                    <View style={[s.catBadge, { backgroundColor: catColor.bg }]}>
-                      <Text style={[s.catBadgeText, { color: catColor.text }]}>
-                        {post.category}
-                      </Text>
+              return (
+                <TouchableOpacity
+                  key={post.id}
+                  style={styles.postCard}
+                  onPress={() => onPostClick(getPostWithCurrentLike(post))}
+                  activeOpacity={0.84}
+                >
+                  <View style={styles.postTopRow}>
+                    <View style={styles.postBadgeRow}>
+                      <View
+                        style={[
+                          styles.categoryBadge,
+                          {
+                            backgroundColor: categoryStyle.bg,
+                            borderColor: categoryStyle.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryBadgeText,
+                            { color: categoryStyle.text },
+                          ]}
+                        >
+                          {post.categoryLabel}
+                        </Text>
+                      </View>
+
+                      <View style={styles.ageBadge}>
+                        <Text style={styles.ageBadgeText}>{post.childAge}</Text>
+                      </View>
                     </View>
 
-                    <Text style={s.postAge}>{post.childAge}</Text>
-                    <Text style={s.postTime}>{post.timeAgo}</Text>
+                    <Text style={styles.postTime}>{post.time}</Text>
                   </View>
 
-                  <Text style={s.postTitle} numberOfLines={1}>
+                  <Text style={styles.postTitle} numberOfLines={2}>
                     {post.title}
                   </Text>
 
-                  <Text style={s.postPreview} numberOfLines={2}>
-                    {post.preview}
+                  <Text style={styles.postContent} numberOfLines={3}>
+                    {post.content}
                   </Text>
 
-                  <View style={s.tagRow}>
+                  <View style={styles.tagRow}>
                     {post.tags.map(tag => (
-                      <View key={tag} style={s.tag}>
-                        <Text style={s.tagText}>#{tag}</Text>
+                      <View key={tag} style={styles.tagChip}>
+                        <Text style={styles.tagText}>#{tag}</Text>
                       </View>
                     ))}
                   </View>
 
-                  <View style={s.postActions}>
-                    <TouchableOpacity
-                      style={s.actionBtn}
-                      onPress={() => toggleLike(post.id)}
-                    >
-                      <Text style={[s.actionIcon, post.isLiked && s.actionIconLiked]}>
-                        {post.isLiked ? '❤️' : '🤍'}
-                      </Text>
-                      <Text style={[s.actionText, post.isLiked && s.actionTextLiked]}>
-                        {post.likes}
-                      </Text>
-                    </TouchableOpacity>
+                  <View style={styles.postFooter}>
+                    <View style={styles.authorRow}>
+                      <View style={styles.avatar}>
+                        <Text style={styles.avatarText}>
+                          {post.author.slice(0, 1)}
+                        </Text>
+                      </View>
 
-                    <View style={s.actionBtn}>
-                      <Text style={s.actionIcon}>💬</Text>
-                      <Text style={s.actionText}>{post.comments}</Text>
+                      <Text style={styles.authorName}>{post.author}</Text>
+                    </View>
+
+                    <View style={styles.actionRow}>
+                      <TouchableOpacity
+                        style={styles.actionItem}
+                        onPress={() => toggleLike(post.id)}
+                        activeOpacity={0.75}
+                      >
+                        <Ionicons
+                          name={liked ? 'heart' : 'heart-outline'}
+                          size={16}
+                          color={liked ? PALETTE.coralDark : PALETTE.muted}
+                        />
+                        <Text
+                          style={[
+                            styles.actionText,
+                            liked && styles.actionTextLiked,
+                          ]}
+                        >
+                          {getLikeCount(post)}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <View style={styles.actionItem}>
+                        <Ionicons
+                          name="chatbubble-outline"
+                          size={15}
+                          color={PALETTE.muted}
+                        />
+                        <Text style={styles.actionText}>{post.commentCount}</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
-                <Ionicons name="chevron-forward" size={16} color="#ccc" />
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-        ItemSeparatorComponent={() => <View style={s.separator} />}
-      />
+        <View style={styles.bottomSpace} />
+      </ScrollView>
 
-      <TouchableOpacity style={s.fab} onPress={onWriteClick}>
-        <Ionicons name="create" size={22} color="#191919" />
+      <TouchableOpacity
+        style={styles.writeButton}
+        onPress={onWriteClick}
+        activeOpacity={0.86}
+      >
+        <Ionicons
+          name="create-outline"
+          size={22}
+          color="#FFFFFF"
+          style={styles.writeIcon}
+        />
       </TouchableOpacity>
 
       <BottomTabBar activeTab="community" onTabChange={onTabChange} />
@@ -345,260 +564,455 @@ export default function CommunityScreen({
   );
 }
 
-const s = StyleSheet.create({
+const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: PALETTE.bg,
   },
 
-  listContent: {
-    paddingBottom: 24,
+  scroll: {
+    flex: 1,
   },
 
-  titleSection: {
-    padding: 16,
-    paddingBottom: 8,
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 116,
   },
 
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
+  topicSection: {
+    marginBottom: 38,
   },
 
-  subtitle: {
-    fontSize: 13,
-    color: '#888',
-    marginTop: 2,
-  },
-
-  aiTopicBox: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: '#EBF8FF',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#BEE3F8',
-  },
-
-  aiTopicHeader: {
+  sectionHeader: {
+    marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
+    justifyContent: 'space-between',
   },
 
-  aiTopicTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1A365D',
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.2,
   },
 
-  aiTopicRow: {
+  sectionHintBadge: {
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: PALETTE.softBorder,
+    backgroundColor: PALETTE.softBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  sectionHint: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  sectionSubHint: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  topicCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: PALETTE.primaryBorder,
+    backgroundColor: PALETTE.primarySoft,
+    paddingVertical: 17,
+    paddingHorizontal: 16,
+  },
+
+  topicChipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
   },
 
-  aiTopicChip: {
-    backgroundColor: 'rgba(255,255,255,0.75)',
-    borderRadius: 20,
+  topicChip: {
+    minHeight: 28,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#BEE3F8',
+    borderColor: 'rgba(138,100,0,0.16)',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  aiTopicChipText: {
+  topicChipText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#2B6CB0',
+    fontWeight: '800',
+    color: PALETTE.primaryDark,
   },
 
-  categoryScroll: {
-    marginBottom: 4,
+  popularSection: {
+    marginBottom: 40,
+  },
+
+  popularList: {
+    gap: 12,
+  },
+
+  popularCard: {
+    minHeight: 82,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+
+  popularContent: {
+    flex: 1,
+  },
+
+  popularMetaRow: {
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
+  popularMetaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flexShrink: 1,
+  },
+
+  topBadge: {
+    height: 22,
+    paddingHorizontal: 9,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: PALETTE.softBorder,
+    backgroundColor: PALETTE.softBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  topBadgeFirst: {
+    borderColor: PALETTE.primaryBorder,
+    backgroundColor: PALETTE.primarySoft,
+  },
+
+  topBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: PALETTE.subText,
+    letterSpacing: -0.1,
+  },
+
+  topBadgeTextFirst: {
+    color: PALETTE.primaryDark,
+  },
+
+  smallCategoryBadge: {
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  smallCategoryText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  popularTime: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: PALETTE.muted,
+  },
+
+  popularTitle: {
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.25,
+  },
+
+  popularStatRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  popularStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  popularStatText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  allPostSection: {
+    marginBottom: 0,
+  },
+
+  listHeader: {
+    marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  listTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: PALETTE.text,
+  },
+
+  listCount: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: PALETTE.muted,
+  },
+
+  categorySection: {
+    marginBottom: 20,
   },
 
   categoryContent: {
-    paddingHorizontal: 16,
     gap: 8,
-    paddingVertical: 8,
+    paddingRight: 2,
   },
 
-  categoryBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F7F8FA',
-    borderWidth: 2,
-    borderColor: 'transparent',
+  categoryChip: {
+    height: 35,
+    paddingHorizontal: 15,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  categoryBtnActive: {
-    backgroundColor: colors.primary.default,
-    borderColor: colors.primary.default,
+  categoryChipActive: {
+    borderColor: PALETTE.primaryBorder,
+    backgroundColor: PALETTE.primarySoft,
   },
 
-  categoryBtnText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#718096',
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: PALETTE.subText,
   },
 
-  categoryBtnTextActive: {
-    color: '#191919',
-    fontWeight: '700',
+  categoryTextActive: {
+    color: PALETTE.primaryDark,
+  },
+
+  postList: {
+    gap: 18,
   },
 
   postCard: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#fff',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
   },
 
-  postRow: {
+  postTopRow: {
     flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-  },
-
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary.default,
     alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    justifyContent: 'space-between',
+    marginBottom: 13,
+    gap: 10,
   },
 
-  avatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#191919',
-  },
-
-  postContent: {
+  postBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
     flex: 1,
   },
 
-  postMeta: {
-    flexDirection: 'row',
+  categoryBadge: {
+    height: 24,
+    paddingHorizontal: 9,
+    borderRadius: 12,
+    borderWidth: 1,
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 4,
-    marginBottom: 4,
+    justifyContent: 'center',
   },
 
-  postAuthor: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
-
-  catBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 20,
-  },
-
-  catBadgeText: {
+  categoryBadgeText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '900',
+    letterSpacing: -0.1,
   },
 
-  postAge: {
-    fontSize: 11,
-    color: '#888',
+  ageBadge: {
+    height: 24,
+    paddingHorizontal: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: PALETTE.softBorder,
+    backgroundColor: PALETTE.softBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  ageBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: PALETTE.muted,
   },
 
   postTime: {
     fontSize: 11,
-    color: '#aaa',
+    fontWeight: '700',
+    color: PALETTE.muted,
   },
 
   postTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 4,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.35,
+    marginBottom: 9,
   },
 
-  postPreview: {
-    fontSize: 12,
-    color: '#718096',
-    lineHeight: 18,
+  postContent: {
+    fontSize: 13,
+    lineHeight: 22,
+    fontWeight: '600',
+    color: PALETTE.subText,
+    letterSpacing: -0.2,
   },
 
   tagRow: {
+    marginTop: 14,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
-    marginTop: 6,
+    gap: 7,
   },
 
-  tag: {
-    backgroundColor: '#F7F8FA',
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  tagChip: {
+    height: 25,
+    paddingHorizontal: 9,
+    borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   tagText: {
     fontSize: 10,
-    color: '#A0AEC0',
+    fontWeight: '800',
+    color: PALETTE.muted,
   },
 
-  postActions: {
+  postFooter: {
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.softBorder,
     flexDirection: 'row',
-    gap: 16,
-    marginTop: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
-  actionBtn: {
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: PALETTE.primarySoft,
+    borderWidth: 1,
+    borderColor: PALETTE.primaryBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  avatarText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: PALETTE.primaryDark,
+  },
+
+  authorName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: PALETTE.subText,
+  },
+
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+  },
+
+  actionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
 
-  actionIcon: {
-    fontSize: 13,
-  },
-
-  actionIconLiked: {
-    color: '#f87171',
-  },
-
   actionText: {
     fontSize: 12,
-    color: '#888',
+    fontWeight: '800',
+    color: PALETTE.muted,
   },
 
   actionTextLiked: {
-    color: '#f87171',
+    color: PALETTE.coralDark,
   },
 
-  separator: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-  },
-
-  fab: {
+  writeButton: {
     position: 'absolute',
-    bottom: 80,
-    right: 20,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.primary.default,
+    right: 22,
+    bottom: 112,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: PALETTE.black,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowColor: '#111827',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
+    zIndex: 20,
+  },
+
+  writeIcon: {
+    transform: [{ translateX: 1 }, { translateY: -1 }],
+  },
+
+  bottomSpace: {
+    height: 8,
   },
 });
