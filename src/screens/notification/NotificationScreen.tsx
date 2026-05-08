@@ -10,7 +10,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 type NotificationType = 'ai' | 'deadline' | 'apply' | 'payment' | 'community';
-type FilterKey = '전체' | '읽지 않음' | 'AI 추천' | '마감 임박' | '신청/결제' | '커뮤니티';
+type FilterKey =
+  | '전체'
+  | '읽지 않음'
+  | 'AI 추천'
+  | '마감 임박'
+  | '신청/결제'
+  | '커뮤니티';
 
 interface NotificationItem {
   id: number;
@@ -214,10 +220,6 @@ export default function NotificationScreen({
     );
   }, [activeFilter, notifications]);
 
-  const unreadCount = useMemo(() => {
-    return notifications.filter(notification => notification.unread).length;
-  }, [notifications]);
-
   const handlePressNotification = (notification: NotificationItem) => {
     const nextNotification = {
       ...notification,
@@ -234,21 +236,21 @@ export default function NotificationScreen({
   };
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
         <Pressable
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
           onPress={onBack}
-          hitSlop={8}
+          hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
         >
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={22} color="#111827" />
         </Pressable>
 
-        <Text style={styles.headerTitle}>알림 센터</Text>
+        <Text style={styles.headerTitle} pointerEvents="none">
+          알림 센터
+        </Text>
 
-        <View style={styles.unreadBadge}>
-          <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
-        </View>
+        <View style={styles.headerButton} />
       </View>
 
       <View style={styles.filterArea}>
@@ -375,20 +377,14 @@ export default function NotificationScreen({
                 </View>
 
                 <Text
-                  style={[
-                    styles.cardBody,
-                    !isUnread && styles.cardBodyRead,
-                  ]}
+                  style={[styles.cardBody, !isUnread && styles.cardBodyRead]}
                   numberOfLines={2}
                 >
                   {notification.body}
                 </Text>
 
                 <Text
-                  style={[
-                    styles.timeText,
-                    !isUnread && styles.timeTextRead,
-                  ]}
+                  style={[styles.timeText, !isUnread && styles.timeTextRead]}
                 >
                   {notification.time}
                 </Text>
@@ -410,21 +406,22 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    height: 58,
-    paddingHorizontal: 22,
+    height: 52,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
   },
 
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'flex-start',
     zIndex: 2,
   },
 
@@ -437,46 +434,31 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     textAlign: 'center',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#111827',
     letterSpacing: -0.3,
-  },
-
-  unreadBadge: {
-    minWidth: 34,
-    height: 34,
-    paddingHorizontal: 10,
-    borderRadius: 17,
-    backgroundColor: '#FFE48A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-
-  unreadBadgeText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#7A5A00',
+    zIndex: 1,
   },
 
   filterArea: {
-    height: 62,
+    height: 58,
     justifyContent: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
 
   filterContent: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     gap: 8,
     alignItems: 'center',
   },
 
   filterChip: {
-    height: 38,
-    paddingHorizontal: 17,
-    borderRadius: 19,
+    height: 34,
+    paddingHorizontal: 15,
+    borderRadius: 17,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -497,7 +479,7 @@ const styles = StyleSheet.create({
   },
 
   filterText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: -0.2,
   },
@@ -515,7 +497,7 @@ const styles = StyleSheet.create({
   },
 
   listContent: {
-    paddingHorizontal: 26,
+    paddingHorizontal: 20,
     paddingTop: 16,
   },
 
