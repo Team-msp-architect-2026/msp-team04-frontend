@@ -95,8 +95,8 @@ export default function MyPageScreen({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={s.scroll}
       >
-        {/* 프로필 + 아이 정보 카드 */}
-        <View style={s.profileCard}>
+        {/* 프로필 + 아이 정보 상단 섹션 */}
+        <View style={s.profileSection}>
           <View style={s.profileRow}>
             <View style={s.avatar}>
               <Text style={s.avatarText}>{initial}</Text>
@@ -112,7 +112,7 @@ export default function MyPageScreen({
               onPress={() => onEditProfile(displayName)}
               activeOpacity={0.72}
             >
-              <Ionicons name="pencil" size={12} color="#7C838E" />
+              <Ionicons name="pencil" size={12} color="#747B86" />
               <Text style={s.editBtnText}>수정</Text>
             </TouchableOpacity>
           </View>
@@ -183,13 +183,13 @@ export default function MyPageScreen({
             >
               <View style={s.menuLeft}>
                 <View style={s.menuIconWrap}>
-                  <Ionicons name={item.icon} size={18} color="#6B7280" />
+                  <Ionicons name={item.icon} size={19} color="#8A929E" />
                 </View>
 
                 <Text style={s.menuLabel}>{item.label}</Text>
               </View>
 
-              <Ionicons name="chevron-forward" size={18} color="#C9CED6" />
+              <Ionicons name="chevron-forward" size={18} color="#C7CDD6" />
             </TouchableOpacity>
           ))}
 
@@ -200,7 +200,7 @@ export default function MyPageScreen({
           >
             <View style={s.menuLeft}>
               <View style={s.menuIconWrap}>
-                <Ionicons name="log-out-outline" size={18} color="#8B919B" />
+                <Ionicons name="log-out-outline" size={19} color="#9AA1AC" />
               </View>
 
               <Text style={s.logoutLabel}>로그아웃</Text>
@@ -223,29 +223,20 @@ export default function MyPageScreen({
 const s = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F4F5F7',
+    backgroundColor: '#F5F6F8',
   },
 
   scroll: {
-    paddingTop: 10,
     paddingBottom: 20,
   },
 
-  profileCard: {
-    marginHorizontal: 12,
-    marginBottom: 8,
+  profileSection: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 26,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
-    borderWidth: 1,
-    borderColor: '#ECEFF3',
-    shadowColor: '#111827',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.045,
-    shadowRadius: 16,
-    elevation: 2,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDEFF3',
   },
 
   profileRow: {
@@ -254,16 +245,16 @@ const s = StyleSheet.create({
   },
 
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: colors.primary.default,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   avatarText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
     color: '#FFFFFF',
   },
@@ -282,7 +273,7 @@ const s = StyleSheet.create({
   },
 
   profileSub: {
-    marginTop: 7,
+    marginTop: 8,
     fontSize: 13,
     lineHeight: 17,
     fontWeight: '500',
@@ -306,14 +297,14 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 15,
     fontWeight: '700',
-    color: '#7C838E',
+    color: '#747B86',
   },
 
   profileDivider: {
     height: 1,
     backgroundColor: '#F0F2F5',
-    marginTop: 18,
-    marginBottom: 16,
+    marginTop: 24,
+    marginBottom: 24,
   },
 
   childSummary: {
@@ -334,8 +325,8 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
-    color: '#9AA1AC',
-    marginBottom: 7,
+    color: '#A0A7B2',
+    marginBottom: 10,
     letterSpacing: -0.1,
   },
 
@@ -369,7 +360,7 @@ const s = StyleSheet.create({
   },
 
   childSummarySub: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '500',
@@ -381,14 +372,14 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 7,
-    marginTop: 11,
+    marginTop: 14,
   },
 
   concernChip: {
-    minHeight: 27,
+    minHeight: 26,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 14,
+    borderRadius: 13,
     backgroundColor: '#FFF7D6',
     borderWidth: 1,
     borderColor: '#F2DE8A',
@@ -408,6 +399,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.primary.default,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 2,
   },
 
   registerBtnText: {
@@ -419,32 +411,33 @@ const s = StyleSheet.create({
 
   menuSection: {
     backgroundColor: '#FFFFFF',
+    marginTop: 4,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: '#ECEFF3',
   },
 
   menuItemWithBorder: {
-    minHeight: 60,
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: 20,
+    paddingLeft: 22,
     paddingRight: 18,
-    paddingVertical: 15,
+    paddingVertical: 14,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F0F1F3',
   },
 
   menuItem: {
-    minHeight: 60,
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: 20,
+    paddingLeft: 22,
     paddingRight: 18,
-    paddingVertical: 15,
+    paddingVertical: 14,
     backgroundColor: '#FFFFFF',
   },
 
@@ -455,13 +448,10 @@ const s = StyleSheet.create({
   },
 
   menuIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 14,
-    backgroundColor: '#F6F7F9',
+    width: 26,
+    marginRight: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
 
   menuLabel: {
