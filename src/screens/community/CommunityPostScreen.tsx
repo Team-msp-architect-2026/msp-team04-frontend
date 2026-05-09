@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -65,6 +66,9 @@ const PALETTE = {
   purpleBorder: '#E4DFFF',
 
   black: '#111827',
+  red: '#D85B52',
+  redSoft: '#FFF3F1',
+  redBorder: '#FAD9D4',
 };
 
 const CATEGORY_STYLES: Record<
@@ -144,6 +148,7 @@ export default function CommunityPostScreen({
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [comments, setComments] = useState<CommentItem[]>(INITIAL_COMMENTS);
   const [commentText, setCommentText] = useState('');
+  const [showActionMenu, setShowActionMenu] = useState(false);
 
   const categoryStyle = useMemo(
     () => getCategoryStyle(post.category),
@@ -197,6 +202,30 @@ export default function CommunityPostScreen({
     setCommentText('');
   };
 
+  const handleEditPost = () => {
+    setShowActionMenu(false);
+
+    Alert.alert('수정하기', '게시글 수정 화면은 추후 연결 예정입니다.', [
+      { text: '확인' },
+    ]);
+  };
+
+  const handleDeletePost = () => {
+    setShowActionMenu(false);
+
+    Alert.alert('게시글 삭제', '이 게시글을 삭제할까요?', [
+      {
+        text: '취소',
+        style: 'cancel',
+      },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: onBack,
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <KeyboardAvoidingView
@@ -217,14 +246,59 @@ export default function CommunityPostScreen({
             커뮤니티
           </Text>
 
-          <TouchableOpacity
-            style={styles.headerButton}
-            activeOpacity={0.75}
-            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-          >
-            <Ionicons name="ellipsis-horizontal" size={22} color={PALETTE.text} />
-          </TouchableOpacity>
+          <View style={styles.moreWrap}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setShowActionMenu(prev => !prev)}
+              activeOpacity={0.75}
+              hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+            >
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={22}
+                color={PALETTE.text}
+              />
+            </TouchableOpacity>
+
+            {showActionMenu && (
+              <View style={styles.actionMenu}>
+                <TouchableOpacity
+                  style={styles.actionMenuItem}
+                  onPress={handleEditPost}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name="create-outline"
+                    size={16}
+                    color={PALETTE.text}
+                  />
+                  <Text style={styles.actionMenuText}>수정하기</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionMenuItem, styles.actionMenuItemDanger]}
+                  onPress={handleDeletePost}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={16}
+                    color={PALETTE.red}
+                  />
+                  <Text style={styles.actionMenuTextDanger}>삭제하기</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
+
+        {showActionMenu && (
+          <TouchableOpacity
+            style={styles.menuDim}
+            activeOpacity={1}
+            onPress={() => setShowActionMenu(false)}
+          />
+        )}
 
         <ScrollView
           style={styles.scroll}
@@ -417,6 +491,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    zIndex: 30,
   },
 
   headerButton: {
@@ -440,6 +515,64 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
 
+  moreWrap: {
+    position: 'relative',
+    zIndex: 40,
+  },
+
+  menuDim: {
+    position: 'absolute',
+    top: 52,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    backgroundColor: 'transparent',
+  },
+
+  actionMenu: {
+    position: 'absolute',
+    top: 42,
+    right: 0,
+    width: 148,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 6,
+    shadowColor: '#111827',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+    zIndex: 50,
+  },
+
+  actionMenuItem: {
+    minHeight: 42,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+
+  actionMenuItemDanger: {
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.softBorder,
+  },
+
+  actionMenuText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: PALETTE.text,
+  },
+
+  actionMenuTextDanger: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: PALETTE.red,
+  },
+
   scroll: {
     flex: 1,
   },
@@ -454,7 +587,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 22,
+    marginBottom: 18,
   },
 
   authorAvatar: {
@@ -516,6 +649,7 @@ const styles = StyleSheet.create({
   },
 
   authorRow: {
+    marginLeft: 3,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
@@ -539,7 +673,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: PALETTE.text,
     letterSpacing: -0.6,
-    marginBottom: 24,
+    marginBottom: 14,
   },
 
   content: {
@@ -551,7 +685,7 @@ const styles = StyleSheet.create({
   },
 
   tagRow: {
-    marginTop: 24,
+    marginTop: 18,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
@@ -575,7 +709,7 @@ const styles = StyleSheet.create({
   },
 
   actionBar: {
-    marginTop: 24,
+    marginTop: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 18,
@@ -600,7 +734,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: PALETTE.softBorder,
-    marginTop: 26,
+    marginTop: 24,
     marginBottom: 22,
   },
 
