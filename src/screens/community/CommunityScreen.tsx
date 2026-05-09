@@ -12,6 +12,7 @@ import CommonHeader from '../../components/CommonHeader';
 import BottomTabBar from '../../components/BottomTabBar';
 
 type CategoryKey = 'all' | 'education' | 'care' | 'review' | 'info' | 'question';
+type ViewMode = 'home' | 'allPosts';
 
 export interface Post {
   id: number;
@@ -210,6 +211,14 @@ const POPULAR_TOPICS = [
   '초등 코딩',
 ];
 
+function getCategoryStyle(category: CategoryKey) {
+  if (category === 'all') {
+    return CATEGORY_STYLES.info;
+  }
+
+  return CATEGORY_STYLES[category];
+}
+
 export default function CommunityScreen({
   onTabChange,
   onPostClick,
@@ -217,6 +226,7 @@ export default function CommunityScreen({
   onSearchClick,
   onNotificationClick,
 }: CommunityScreenProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('home');
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
   const [likedPostIds, setLikedPostIds] = useState<number[]>(
     POSTS.filter(post => post.liked).map(post => post.id),
@@ -238,6 +248,8 @@ export default function CommunityScreen({
       )
       .slice(0, 3);
   }, []);
+
+  const previewPosts = useMemo(() => POSTS.slice(0, 3), []);
 
   const toggleLike = (postId: number) => {
     setLikedPostIds(prev =>
@@ -268,6 +280,101 @@ export default function CommunityScreen({
     };
   };
 
+  const renderPostCard = (post: Post) => {
+    const categoryStyle = getCategoryStyle(post.category);
+    const liked = likedPostIds.includes(post.id);
+
+    return (
+      <TouchableOpacity
+        key={post.id}
+        style={styles.postCard}
+        onPress={() => onPostClick(getPostWithCurrentLike(post))}
+        activeOpacity={0.84}
+      >
+        <View style={styles.postTopRow}>
+          <View style={styles.postBadgeRow}>
+            <View
+              style={[
+                styles.categoryBadge,
+                {
+                  backgroundColor: categoryStyle.bg,
+                  borderColor: categoryStyle.border,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.categoryBadgeText,
+                  { color: categoryStyle.text },
+                ]}
+              >
+                {post.categoryLabel}
+              </Text>
+            </View>
+
+            <View style={styles.ageBadge}>
+              <Text style={styles.ageBadgeText}>{post.childAge}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.postTime}>{post.time}</Text>
+        </View>
+
+        <Text style={styles.postTitle} numberOfLines={2}>
+          {post.title}
+        </Text>
+
+        <Text style={styles.postContent} numberOfLines={3}>
+          {post.content}
+        </Text>
+
+        <View style={styles.tagRow}>
+          {post.tags.map(tag => (
+            <View key={tag} style={styles.tagChip}>
+              <Text style={styles.tagText}>#{tag}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.postFooter}>
+          <View style={styles.authorRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{post.author.slice(0, 1)}</Text>
+            </View>
+
+            <Text style={styles.authorName}>{post.author}</Text>
+          </View>
+
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => toggleLike(post.id)}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name={liked ? 'heart' : 'heart-outline'}
+                size={16}
+                color={liked ? PALETTE.coralDark : PALETTE.muted}
+              />
+              <Text style={[styles.actionText, liked && styles.actionTextLiked]}>
+                {getLikeCount(post)}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.actionItem}>
+              <Ionicons
+                name="chatbubble-outline"
+                size={15}
+                color={PALETTE.muted}
+              />
+              <Text style={styles.actionText}>{post.commentCount}</Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.root}>
       <CommonHeader
@@ -282,266 +389,216 @@ export default function CommunityScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.topicSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>요즘 많이 보는 주제</Text>
-            <View style={styles.sectionHintBadge}>
-              <Text style={styles.sectionHint}>AI 추천</Text>
-            </View>
-          </View>
-
-          <View style={styles.topicCard}>
-            <View style={styles.topicChipRow}>
-              {POPULAR_TOPICS.map(topic => (
-                <View key={topic} style={styles.topicChip}>
-                  <Text style={styles.topicChipText}>{topic}</Text>
+        {viewMode === 'home' ? (
+          <>
+            <View style={styles.topicSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>요즘 많이 보는 주제</Text>
+                <View style={styles.sectionHintBadge}>
+                  <Text style={styles.sectionHint}>AI 추천</Text>
                 </View>
-              ))}
+              </View>
+
+              <View style={styles.topicCard}>
+                <View style={styles.topicChipRow}>
+                  {POPULAR_TOPICS.map(topic => (
+                    <View key={topic} style={styles.topicChip}>
+                      <Text style={styles.topicChipText}>{topic}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
 
-        <View style={styles.popularSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>커뮤니티 인기글 TOP 3</Text>
-            <Text style={styles.sectionSubHint}>공감·댓글 기준</Text>
-          </View>
+            <View style={styles.popularSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>커뮤니티 인기글 TOP 3</Text>
+                <Text style={styles.sectionSubHint}>공감·댓글 기준</Text>
+              </View>
 
-          <View style={styles.popularList}>
-            {popularPosts.map((post, index) => {
-              const categoryStyle =
-                CATEGORY_STYLES[post.category as Exclude<CategoryKey, 'all'>];
+              <View style={styles.popularList}>
+                {popularPosts.map((post, index) => {
+                  const categoryStyle = getCategoryStyle(post.category);
 
-              return (
-                <TouchableOpacity
-                  key={post.id}
-                  style={styles.popularCard}
-                  onPress={() => onPostClick(getPostWithCurrentLike(post))}
-                  activeOpacity={0.84}
-                >
-                  <View style={styles.popularContent}>
-                    <View style={styles.popularMetaRow}>
-                      <View style={styles.popularMetaLeft}>
-                        <View
-                          style={[
-                            styles.topBadge,
-                            index === 0 && styles.topBadgeFirst,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.topBadgeText,
-                              index === 0 && styles.topBadgeTextFirst,
-                            ]}
-                          >
-                            TOP {index + 1}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.smallCategoryBadge,
-                            {
-                              backgroundColor: categoryStyle.bg,
-                              borderColor: categoryStyle.border,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.smallCategoryText,
-                              { color: categoryStyle.text },
-                            ]}
-                          >
-                            {post.categoryLabel}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <Text style={styles.popularTime}>{post.time}</Text>
-                    </View>
-
-                    <Text style={styles.popularTitle} numberOfLines={1}>
-                      {post.title}
-                    </Text>
-
-                    <View style={styles.popularStatRow}>
-                      <View style={styles.popularStatItem}>
-                        <Ionicons
-                          name="heart-outline"
-                          size={13}
-                          color={PALETTE.muted}
-                        />
-                        <Text style={styles.popularStatText}>
-                          {getLikeCount(post)}
-                        </Text>
-                      </View>
-
-                      <View style={styles.popularStatItem}>
-                        <Ionicons
-                          name="chatbubble-outline"
-                          size={12}
-                          color={PALETTE.muted}
-                        />
-                        <Text style={styles.popularStatText}>
-                          {post.commentCount}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.allPostSection}>
-          <View style={styles.listHeader}>
-            <Text style={styles.listTitle}>커뮤니티 전체글</Text>
-            <Text style={styles.listCount}>{filteredPosts.length}개</Text>
-          </View>
-
-          <View style={styles.categorySection}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoryContent}
-            >
-              {CATEGORIES.map(category => {
-                const isActive = activeCategory === category.key;
-
-                return (
-                  <TouchableOpacity
-                    key={category.key}
-                    style={[
-                      styles.categoryChip,
-                      isActive && styles.categoryChipActive,
-                    ]}
-                    onPress={() => setActiveCategory(category.key)}
-                    activeOpacity={0.78}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryText,
-                        isActive && styles.categoryTextActive,
-                      ]}
+                  return (
+                    <TouchableOpacity
+                      key={post.id}
+                      style={styles.popularCard}
+                      onPress={() => onPostClick(getPostWithCurrentLike(post))}
+                      activeOpacity={0.84}
                     >
-                      {category.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
+                      <View style={styles.popularContent}>
+                        <View style={styles.popularMetaRow}>
+                          <View style={styles.popularMetaLeft}>
+                            <View
+                              style={[
+                                styles.topBadge,
+                                index === 0 && styles.topBadgeFirst,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.topBadgeText,
+                                  index === 0 && styles.topBadgeTextFirst,
+                                ]}
+                              >
+                                TOP {index + 1}
+                              </Text>
+                            </View>
 
-          <View style={styles.postList}>
-            {filteredPosts.map(post => {
-              const categoryStyle =
-                post.category === 'all'
-                  ? CATEGORY_STYLES.info
-                  : CATEGORY_STYLES[post.category as Exclude<CategoryKey, 'all'>];
+                            <View
+                              style={[
+                                styles.smallCategoryBadge,
+                                {
+                                  backgroundColor: categoryStyle.bg,
+                                  borderColor: categoryStyle.border,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.smallCategoryText,
+                                  { color: categoryStyle.text },
+                                ]}
+                              >
+                                {post.categoryLabel}
+                              </Text>
+                            </View>
+                          </View>
 
-              const liked = likedPostIds.includes(post.id);
+                          <Text style={styles.popularTime}>{post.time}</Text>
+                        </View>
 
-              return (
+                        <Text style={styles.popularTitle} numberOfLines={1}>
+                          {post.title}
+                        </Text>
+
+                        <View style={styles.popularStatRow}>
+                          <View style={styles.popularStatItem}>
+                            <Ionicons
+                              name="heart-outline"
+                              size={13}
+                              color={PALETTE.muted}
+                            />
+                            <Text style={styles.popularStatText}>
+                              {getLikeCount(post)}
+                            </Text>
+                          </View>
+
+                          <View style={styles.popularStatItem}>
+                            <Ionicons
+                              name="chatbubble-outline"
+                              size={12}
+                              color={PALETTE.muted}
+                            />
+                            <Text style={styles.popularStatText}>
+                              {post.commentCount}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.allPostSection}>
+              <View style={styles.listHeader}>
+                <View>
+                  <Text style={styles.listTitle}>커뮤니티 전체글</Text>
+                  <Text style={styles.listSubtitle}>
+                    최신 글 3개만 먼저 보여드려요
+                  </Text>
+                </View>
+
                 <TouchableOpacity
-                  key={post.id}
-                  style={styles.postCard}
-                  onPress={() => onPostClick(getPostWithCurrentLike(post))}
-                  activeOpacity={0.84}
+                  style={styles.viewAllButton}
+                  onPress={() => setViewMode('allPosts')}
+                  activeOpacity={0.78}
                 >
-                  <View style={styles.postTopRow}>
-                    <View style={styles.postBadgeRow}>
-                      <View
+                  <Text style={styles.viewAllText}>전체보기</Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={14}
+                    color={PALETTE.text}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.postList}>
+                {previewPosts.map(post => renderPostCard(post))}
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.allModeHeader}>
+              <TouchableOpacity
+                style={styles.inlineBackButton}
+                onPress={() => {
+                  setViewMode('home');
+                  setActiveCategory('all');
+                }}
+                activeOpacity={0.78}
+              >
+                <Ionicons name="chevron-back" size={18} color={PALETTE.text} />
+                <Text style={styles.inlineBackText}>메인으로</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.allModeTitle}>커뮤니티 전체글</Text>
+              <Text style={styles.allModeDesc}>
+                카테고리별로 부모님들의 이야기를 확인해보세요.
+              </Text>
+            </View>
+
+            <View style={styles.categorySection}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryContent}
+              >
+                {CATEGORIES.map(category => {
+                  const isActive = activeCategory === category.key;
+
+                  return (
+                    <TouchableOpacity
+                      key={category.key}
+                      style={[
+                        styles.categoryChip,
+                        isActive && styles.categoryChipActive,
+                      ]}
+                      onPress={() => setActiveCategory(category.key)}
+                      activeOpacity={0.78}
+                    >
+                      <Text
                         style={[
-                          styles.categoryBadge,
-                          {
-                            backgroundColor: categoryStyle.bg,
-                            borderColor: categoryStyle.border,
-                          },
+                          styles.categoryText,
+                          isActive && styles.categoryTextActive,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.categoryBadgeText,
-                            { color: categoryStyle.text },
-                          ]}
-                        >
-                          {post.categoryLabel}
-                        </Text>
-                      </View>
+                        {category.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
 
-                      <View style={styles.ageBadge}>
-                        <Text style={styles.ageBadgeText}>{post.childAge}</Text>
-                      </View>
-                    </View>
+            <View style={styles.listHeader}>
+              <Text style={styles.listTitle}>
+                {activeCategory === 'all'
+                  ? '전체 게시글'
+                  : `${CATEGORIES.find(item => item.key === activeCategory)?.label} 게시글`}
+              </Text>
+              <Text style={styles.listCount}>{filteredPosts.length}개</Text>
+            </View>
 
-                    <Text style={styles.postTime}>{post.time}</Text>
-                  </View>
-
-                  <Text style={styles.postTitle} numberOfLines={2}>
-                    {post.title}
-                  </Text>
-
-                  <Text style={styles.postContent} numberOfLines={3}>
-                    {post.content}
-                  </Text>
-
-                  <View style={styles.tagRow}>
-                    {post.tags.map(tag => (
-                      <View key={tag} style={styles.tagChip}>
-                        <Text style={styles.tagText}>#{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <View style={styles.postFooter}>
-                    <View style={styles.authorRow}>
-                      <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>
-                          {post.author.slice(0, 1)}
-                        </Text>
-                      </View>
-
-                      <Text style={styles.authorName}>{post.author}</Text>
-                    </View>
-
-                    <View style={styles.actionRow}>
-                      <TouchableOpacity
-                        style={styles.actionItem}
-                        onPress={() => toggleLike(post.id)}
-                        activeOpacity={0.75}
-                      >
-                        <Ionicons
-                          name={liked ? 'heart' : 'heart-outline'}
-                          size={16}
-                          color={liked ? PALETTE.coralDark : PALETTE.muted}
-                        />
-                        <Text
-                          style={[
-                            styles.actionText,
-                            liked && styles.actionTextLiked,
-                          ]}
-                        >
-                          {getLikeCount(post)}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <View style={styles.actionItem}>
-                        <Ionicons
-                          name="chatbubble-outline"
-                          size={15}
-                          color={PALETTE.muted}
-                        />
-                        <Text style={styles.actionText}>{post.commentCount}</Text>
-                      </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
+            <View style={styles.postList}>
+              {filteredPosts.map(post => renderPostCard(post))}
+            </View>
+          </>
+        )}
 
         <View style={styles.bottomSpace} />
       </ScrollView>
@@ -773,6 +830,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
 
   listTitle: {
@@ -781,10 +839,71 @@ const styles = StyleSheet.create({
     color: PALETTE.text,
   },
 
+  listSubtitle: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    color: PALETTE.muted,
+  },
+
   listCount: {
     fontSize: 12,
     fontWeight: '800',
     color: PALETTE.muted,
+  },
+
+  viewAllButton: {
+    height: 32,
+    paddingHorizontal: 11,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+
+  viewAllText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: PALETTE.text,
+  },
+
+  allModeHeader: {
+    marginBottom: 24,
+  },
+
+  inlineBackButton: {
+    alignSelf: 'flex-start',
+    height: 32,
+    paddingRight: 10,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+
+  inlineBackText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: PALETTE.text,
+  },
+
+  allModeTitle: {
+    fontSize: 21,
+    lineHeight: 28,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.6,
+  },
+
+  allModeDesc: {
+    marginTop: 7,
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: '600',
+    color: PALETTE.subText,
   },
 
   categorySection: {

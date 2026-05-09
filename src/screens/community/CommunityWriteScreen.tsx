@@ -156,21 +156,7 @@ export default function CommunityWriteScreen({
             글쓰기
           </Text>
 
-          <TouchableOpacity
-            style={styles.headerSubmitButton}
-            onPress={handleSubmit}
-            disabled={!canSubmit}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.headerSubmitText,
-                !canSubmit && styles.headerSubmitTextDisabled,
-              ]}
-            >
-              등록
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.headerButton} />
         </View>
 
         <ScrollView
@@ -182,7 +168,7 @@ export default function CommunityWriteScreen({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>카테고리</Text>
 
-            <View style={styles.categoryList}>
+            <View style={styles.categoryChipRow}>
               {CATEGORIES.map(item => {
                 const isActive = category === item.key;
 
@@ -190,38 +176,28 @@ export default function CommunityWriteScreen({
                   <TouchableOpacity
                     key={item.key}
                     style={[
-                      styles.categoryCard,
-                      isActive && styles.categoryCardActive,
+                      styles.categoryChip,
+                      isActive && styles.categoryChipActive,
                     ]}
                     onPress={() => setCategory(item.key)}
                     activeOpacity={0.8}
                   >
-                    <View style={styles.categoryTextBox}>
-                      <Text
-                        style={[
-                          styles.categoryLabel,
-                          isActive && styles.categoryLabelActive,
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                      <Text style={styles.categoryDescription}>
-                        {item.description}
-                      </Text>
-                    </View>
-
-                    <View
+                    <Text
                       style={[
-                        styles.radioCircle,
-                        isActive && styles.radioCircleActive,
+                        styles.categoryChipText,
+                        isActive && styles.categoryChipTextActive,
                       ]}
                     >
-                      {isActive && <View style={styles.radioInner} />}
-                    </View>
+                      {item.label}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
+
+            <Text style={styles.categoryDescription}>
+              {selectedCategory?.description}
+            </Text>
           </View>
 
           <View style={styles.section}>
@@ -264,7 +240,10 @@ export default function CommunityWriteScreen({
               maxLength={60}
             />
 
-            <Text style={styles.inputCount}>{title.length}/60</Text>
+            <View style={styles.helperRow}>
+              <Text style={styles.helperText}>3자 이상 입력해주세요</Text>
+              <Text style={styles.inputCount}>{title.length}/60</Text>
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -281,7 +260,10 @@ export default function CommunityWriteScreen({
               maxLength={1000}
             />
 
-            <Text style={styles.inputCount}>{content.length}/1000</Text>
+            <View style={styles.helperRow}>
+              <Text style={styles.helperText}>10자 이상 입력하면 등록할 수 있어요</Text>
+              <Text style={styles.inputCount}>{content.length}/1000</Text>
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -393,24 +375,6 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
 
-  headerSubmitButton: {
-    minWidth: 44,
-    height: 34,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-
-  headerSubmitText: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: PALETTE.black,
-  },
-
-  headerSubmitTextDisabled: {
-    color: '#CBD5E1',
-  },
-
   scroll: {
     flex: 1,
   },
@@ -453,70 +417,44 @@ const styles = StyleSheet.create({
     color: PALETTE.muted,
   },
 
-  categoryList: {
-    gap: 10,
+  categoryChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
 
-  categoryCard: {
-    minHeight: 66,
-    borderRadius: 18,
+  categoryChip: {
+    height: 34,
+    paddingHorizontal: 13,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: PALETTE.border,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 15,
-    paddingVertical: 13,
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'center',
   },
 
-  categoryCardActive: {
+  categoryChipActive: {
     borderColor: PALETTE.primaryBorder,
     backgroundColor: PALETTE.primarySoft,
   },
 
-  categoryTextBox: {
-    flex: 1,
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: PALETTE.subText,
   },
 
-  categoryLabel: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: PALETTE.text,
-  },
-
-  categoryLabelActive: {
+  categoryChipTextActive: {
     color: PALETTE.primaryDark,
   },
 
   categoryDescription: {
-    marginTop: 4,
+    marginTop: 12,
     fontSize: 12,
-    fontWeight: '600',
-    color: PALETTE.muted,
     lineHeight: 18,
-  },
-
-  radioCircle: {
-    width: 21,
-    height: 21,
-    borderRadius: 11,
-    borderWidth: 1.6,
-    borderColor: '#D1D5DB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-
-  radioCircleActive: {
-    borderColor: PALETTE.black,
-  },
-
-  radioInner: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: PALETTE.black,
+    fontWeight: '700',
+    color: PALETTE.muted,
   },
 
   ageChipRow: {
@@ -578,9 +516,22 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
-  inputCount: {
+  helperRow: {
     marginTop: 7,
-    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  helperText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    color: PALETTE.muted,
+  },
+
+  inputCount: {
     fontSize: 11,
     fontWeight: '700',
     color: PALETTE.muted,
