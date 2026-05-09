@@ -5,10 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  StatusBar,
 } from 'react-native';
-import BottomTabBar from '../../components/BottomTabBar';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import BottomTabBar from '../../components/BottomTabBar';
+import CommonHeader from '../../components/CommonHeader';
 import { colors } from '../../constants';
 
 interface MyPageScreenProps {
@@ -24,24 +25,45 @@ interface MyPageScreenProps {
   onNavigate: (screen: string) => void;
 }
 
-const CONCERN_EMOJIS: Record<string, string> = {
-  '학습': '📚',
-  '친구 관계': '👫',
-  '성격': '💝',
-  '진로': '🎯',
-  '기타': '✨',
-};
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
-const MENU_ITEMS = [
-  { id: 'applications', icon: 'document-text', label: '신청 내역', badge: '2' },
-  { id: 'saved', icon: 'heart', label: '저장 목록', badge: '5' },
-  { id: 'community', icon: 'chatbubbles', label: '커뮤니티 활동', badge: null },
-];
+interface MenuItem {
+  id: string;
+  icon: IconName;
+  label: string;
+}
 
-const SETTINGS_ITEMS = [
-  { id: 'notifications', icon: 'notifications', label: '알림 설정' },
-  { id: 'settings', icon: 'settings', label: '설정' },
-  { id: 'help', icon: 'help-circle', label: '고객센터' },
+const MENU_ITEMS: MenuItem[] = [
+  {
+    id: 'applications',
+    icon: 'clipboard-outline',
+    label: '신청 내역',
+  },
+  {
+    id: 'saved',
+    icon: 'heart-outline',
+    label: '저장 목록',
+  },
+  {
+    id: 'community',
+    icon: 'chatbubble-ellipses-outline',
+    label: '커뮤니티 활동',
+  },
+  {
+    id: 'notifications',
+    icon: 'notifications-outline',
+    label: '알림 설정',
+  },
+  {
+    id: 'settings',
+    icon: 'options-outline',
+    label: '설정',
+  },
+  {
+    id: 'help',
+    icon: 'help-buoy-outline',
+    label: '고객센터',
+  },
 ];
 
 export default function MyPageScreen({
@@ -56,109 +78,132 @@ export default function MyPageScreen({
   onEditProfile,
   onNavigate,
 }: MyPageScreenProps) {
-  return (
-    <SafeAreaView style={s.root} edges={['top']}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Text style={s.logo}>MoMent</Text>
-        <TouchableOpacity style={s.iconBtn} onPress={() => onNavigate('settings')}>
-          <Ionicons name="settings" size={22} color="#666" />
-        </TouchableOpacity>
-      </View>
+  const displayName = userName || '사용자';
+  const initial = displayName.trim().charAt(0) || 'M';
+  const concerns = childConcerns?.filter(Boolean) ?? [];
 
-      <ScrollView contentContainerStyle={s.scroll}>
-        {/* 프로필 카드 */}
-        <View style={s.profileSection}>
+  return (
+    <View style={s.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      <CommonHeader
+        variant="my"
+        onSettingsPress={() => onNavigate('settings')}
+      />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={s.scroll}
+      >
+        {/* 프로필 + 아이 정보 카드 */}
+        <View style={s.profileCard}>
           <View style={s.profileRow}>
             <View style={s.avatar}>
-              <Text style={s.avatarText}>{userName.charAt(0)}</Text>
+              <Text style={s.avatarText}>{initial}</Text>
             </View>
+
             <View style={s.profileInfo}>
-              <Text style={s.profileName}>{userName}</Text>
+              <Text style={s.profileName}>{displayName}</Text>
               <Text style={s.profileSub}>카카오 로그인</Text>
             </View>
-            <TouchableOpacity style={s.editBtn} onPress={() => onEditProfile(userName)}>
-              <Ionicons name="pencil" size={12} color="#888" />
+
+            <TouchableOpacity
+              style={s.editBtn}
+              onPress={() => onEditProfile(displayName)}
+              activeOpacity={0.72}
+            >
+              <Ionicons name="pencil" size={12} color="#7C838E" />
               <Text style={s.editBtnText}>수정</Text>
             </TouchableOpacity>
           </View>
 
-          {/* 아이 정보 요약 */}
+          <View style={s.profileDivider} />
+
           <View style={s.childSummary}>
             <View style={s.childSummaryTop}>
-              <View style={{ flex: 1 }}>
+              <View style={s.childTextArea}>
                 <Text style={s.childSummaryLabel}>등록된 아이 정보</Text>
+
                 {hasChildInfo && childName ? (
                   <>
-                    <Text style={s.childSummaryName}>{childName} · {childAge}세</Text>
-                    {childConcerns && childConcerns.length > 0 && (
+                    <View style={s.childTitleRow}>
+                      <Text style={s.childSummaryName}>{childName}</Text>
+                      {typeof childAge === 'number' && (
+                        <Text style={s.childAgeText}>만 {childAge}세</Text>
+                      )}
+                    </View>
+
+                    {concerns.length > 0 ? (
                       <View style={s.concernRow}>
-                        {childConcerns.map(concern => (
+                        {concerns.map((concern) => (
                           <View key={concern} style={s.concernChip}>
-                            <Text style={s.concernChipText}>
-                              {CONCERN_EMOJIS[concern] || '✨'} {concern}
-                            </Text>
+                            <Text style={s.concernChipText}>{concern}</Text>
                           </View>
                         ))}
                       </View>
+                    ) : (
+                      <Text style={s.childSummarySub}>
+                        관심사를 등록하면 추천 정확도가 더 좋아져요.
+                      </Text>
                     )}
                   </>
                 ) : (
-                  <Text style={s.childSummaryEmpty}>아직 등록된 정보가 없어요</Text>
+                  <>
+                    <Text style={s.childSummaryEmpty}>
+                      아직 등록된 정보가 없어요
+                    </Text>
+                    <Text style={s.childSummarySub}>
+                      아이 정보를 등록하면 맞춤 추천을 받을 수 있어요.
+                    </Text>
+                  </>
                 )}
               </View>
-              <TouchableOpacity style={s.registerBtn} onPress={onRegisterChild}>
-                <Text style={s.registerBtnText}>{hasChildInfo ? '수정하기' : '등록하기'}</Text>
+
+              <TouchableOpacity
+                style={s.registerBtn}
+                onPress={onRegisterChild}
+                activeOpacity={0.72}
+              >
+                <Text style={s.registerBtnText}>
+                  {hasChildInfo ? '수정하기' : '등록하기'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        {/* 메뉴 */}
+        {/* 메뉴 + 설정 + 로그아웃 통합 리스트 */}
         <View style={s.menuSection}>
-          {MENU_ITEMS.map((item, idx) => (
+          {MENU_ITEMS.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={[s.menuItem, idx !== MENU_ITEMS.length - 1 && s.menuItemBorder]}
+              style={s.menuItemWithBorder}
               onPress={() => onNavigate(item.id)}
+              activeOpacity={0.72}
             >
               <View style={s.menuLeft}>
-                <Ionicons name={item.icon as any} size={20} color="#888" />
-                <Text style={s.menuLabel}>{item.label}</Text>
-                {item.badge && (
-                  <View style={s.badge}>
-                    <Text style={s.badgeText}>{item.badge}</Text>
-                  </View>
-                )}
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#ccc" />
-            </TouchableOpacity>
-          ))}
-        </View>
+                <View style={s.menuIconWrap}>
+                  <Ionicons name={item.icon} size={18} color="#6B7280" />
+                </View>
 
-        {/* 설정 */}
-        <View style={s.menuSection}>
-          {SETTINGS_ITEMS.map((item, idx) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[s.menuItem, idx !== SETTINGS_ITEMS.length - 1 && s.menuItemBorder]}
-              onPress={() => onNavigate(item.id)}
-            >
-              <View style={s.menuLeft}>
-                <Ionicons name={item.icon as any} size={20} color="#888" />
                 <Text style={s.menuLabel}>{item.label}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#ccc" />
+
+              <Ionicons name="chevron-forward" size={18} color="#C9CED6" />
             </TouchableOpacity>
           ))}
-        </View>
 
-        {/* 로그아웃 */}
-        <View style={s.menuSection}>
-          <TouchableOpacity style={s.menuItem} onPress={onLogout}>
+          <TouchableOpacity
+            style={s.menuItem}
+            onPress={onLogout}
+            activeOpacity={0.72}
+          >
             <View style={s.menuLeft}>
-              <Ionicons name="log-out" size={20} color="#888" />
-              <Text style={s.menuLabel}>로그아웃</Text>
+              <View style={s.menuIconWrap}>
+                <Ionicons name="log-out-outline" size={18} color="#8B919B" />
+              </View>
+
+              <Text style={s.logoutLabel}>로그아웃</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -170,57 +215,282 @@ export default function MyPageScreen({
         </View>
       </ScrollView>
 
-      {/* 하단 탭 */}
-      
       <BottomTabBar activeTab="my" onTabChange={onTabChange} />
-
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F3F4F6' },
+  root: {
+    flex: 1,
+    backgroundColor: '#F4F5F7',
+  },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 56, paddingHorizontal: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  logo: { fontSize: 20, fontWeight: '700', color: colors.primary.default },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  scroll: {
+    paddingTop: 10,
+    paddingBottom: 20,
+  },
 
-  scroll: { paddingBottom: 20 },
+  profileCard: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 26,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ECEFF3',
+    shadowColor: '#111827',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.045,
+    shadowRadius: 16,
+    elevation: 2,
+  },
 
-  profileSection: { backgroundColor: '#fff', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary.default, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 24, fontWeight: '700', color: '#fff' },
-  profileInfo: { flex: 1 },
-  profileName: { fontSize: 17, fontWeight: '700', color: '#1A1A1A' },
-  profileSub: { fontSize: 13, color: '#888', marginTop: 2 },
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6 },
-  editBtnText: { fontSize: 12, color: '#888' },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
 
-  childSummary: { marginTop: 12, backgroundColor: '#FFF9E6', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FFE08A' },
-  childSummaryTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  childSummaryLabel: { fontSize: 11, color: '#888', marginBottom: 4 },
-  childSummaryName: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
-  childSummaryEmpty: { fontSize: 13, fontWeight: '500', color: '#1A1A1A', marginTop: 2 },
-  concernRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  concernChip: { backgroundColor: '#FFF3CD', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
-  concernChipText: { fontSize: 11, fontWeight: '600', color: colors.primary.default },
-  registerBtn: { backgroundColor: colors.primary.default, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  registerBtnText: { fontSize: 12, fontWeight: '600', color: '#1A1A1A' },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.primary.default,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
-  menuSection: { backgroundColor: '#fff', marginTop: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F0F0F0' },
-  menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 16 },
-  menuItemBorder: { borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  menuLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  menuLabel: { fontSize: 14, fontWeight: '500', color: '#1A1A1A' },
-  badge: { backgroundColor: colors.primary.default, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  badgeText: { fontSize: 10, fontWeight: '700', color: '#1A1A1A' },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
 
-  appInfo: { padding: 24, alignItems: 'center', gap: 4 },
-  appInfoText: { fontSize: 12, color: '#aaa' },
+  profileInfo: {
+    flex: 1,
+    marginLeft: 14,
+  },
 
-  bottomTab: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F0F0F0' },
-  tabItem: { flex: 1, alignItems: 'center', paddingTop: 10, paddingBottom: 6, gap: 2 },
-  tabLabel: { fontSize: 10, color: '#aaa' },
-  tabLabelActive: { color: colors.primary.default, fontWeight: '600' },
+  profileName: {
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: '800',
+    color: '#181A1F',
+    letterSpacing: -0.25,
+  },
+
+  profileSub: {
+    marginTop: 7,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '500',
+    color: '#9299A3',
+    letterSpacing: -0.1,
+  },
+
+  editBtn: {
+    height: 32,
+    paddingHorizontal: 11,
+    borderRadius: 16,
+    backgroundColor: '#F7F8FA',
+    borderWidth: 1,
+    borderColor: '#E8EBF0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  editBtnText: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '700',
+    color: '#7C838E',
+  },
+
+  profileDivider: {
+    height: 1,
+    backgroundColor: '#F0F2F5',
+    marginTop: 18,
+    marginBottom: 16,
+  },
+
+  childSummary: {
+    backgroundColor: '#FFFFFF',
+  },
+
+  childSummaryTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+
+  childTextArea: {
+    flex: 1,
+  },
+
+  childSummaryLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    color: '#9AA1AC',
+    marginBottom: 7,
+    letterSpacing: -0.1,
+  },
+
+  childTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+
+  childSummaryName: {
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: '#181A1F',
+    letterSpacing: -0.25,
+  },
+
+  childAgeText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    color: '#747B86',
+  },
+
+  childSummaryEmpty: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '800',
+    color: '#252A32',
+    letterSpacing: -0.2,
+  },
+
+  childSummarySub: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: '#9299A3',
+    letterSpacing: -0.1,
+  },
+
+  concernRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginTop: 11,
+  },
+
+  concernChip: {
+    minHeight: 27,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: '#FFF7D6',
+    borderWidth: 1,
+    borderColor: '#F2DE8A',
+  },
+
+  concernChipText: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '700',
+    color: '#7A6400',
+  },
+
+  registerBtn: {
+    height: 32,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    backgroundColor: colors.primary.default,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  registerBtnText: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '800',
+    color: '#2A250A',
+  },
+
+  menuSection: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#ECEFF3',
+  },
+
+  menuItemWithBorder: {
+    minHeight: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 20,
+    paddingRight: 18,
+    paddingVertical: 15,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F1F3',
+  },
+
+  menuItem: {
+    minHeight: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 20,
+    paddingRight: 18,
+    paddingVertical: 15,
+    backgroundColor: '#FFFFFF',
+  },
+
+  menuLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  menuIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 14,
+    backgroundColor: '#F6F7F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  menuLabel: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '800',
+    color: '#20242B',
+    letterSpacing: -0.25,
+  },
+
+  logoutLabel: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '800',
+    color: '#747B86',
+    letterSpacing: -0.25,
+  },
+
+  appInfo: {
+    paddingTop: 24,
+    paddingBottom: 8,
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  appInfoText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+    color: '#ADB3BD',
+  },
 });
