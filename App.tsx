@@ -30,6 +30,7 @@ import type { Post } from './src/screens/community/CommunityScreen';
 import CommunityWriteScreen from './src/screens/community/CommunityWriteScreen';
 import CommunityPostScreen from './src/screens/community/CommunityPostScreen';
 import MyCommunityScreen from './src/screens/community/MyCommunityScreen';
+import type { CommunityActivity } from './src/screens/community/MyCommunityScreen';
 
 import MyPageScreen from './src/screens/mypage/MyPageScreen';
 import ProfileEditScreen from './src/screens/mypage/ProfileEditScreen';
@@ -120,6 +121,8 @@ export default function App() {
   });
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [communityPostBackScreen, setCommunityPostBackScreen] =
+    useState<Screen>('community');
   const [selectedProgram, setSelectedProgram] =
     useState<ProgramDetail | null>(null);
   const [programDetailBackScreen, setProgramDetailBackScreen] =
@@ -157,6 +160,8 @@ export default function App() {
   const handleReset = () => {
     logout();
     clearChildProfile();
+    setSelectedPost(null);
+    setCommunityPostBackScreen('community');
     setSelectedProgram(null);
     setApplicationInfo(null);
     setPaymentSummary(null);
@@ -166,11 +171,19 @@ export default function App() {
   };
 
   const handleGoHome = () => {
+    setSelectedPost(null);
+    setCommunityPostBackScreen('community');
     setSelectedProgram(null);
     setApplicationInfo(null);
     setPaymentSummary(null);
     setSelectedApplication(null);
     setCurrentScreen('home');
+  };
+
+  const handleCommunityActivityPress = (activity: CommunityActivity) => {
+    setSelectedPost(activity.post);
+    setCommunityPostBackScreen('myCommunity');
+    setCurrentScreen('communityPost');
   };
 
   return (
@@ -324,6 +337,8 @@ export default function App() {
               onLogout={() => {
                 logout();
                 clearChildProfile();
+                setSelectedPost(null);
+                setCommunityPostBackScreen('community');
                 setSelectedProgram(null);
                 setApplicationInfo(null);
                 setPaymentSummary(null);
@@ -373,6 +388,7 @@ export default function App() {
               onTabChange={(tab) => setCurrentScreen(tab as Screen)}
               onPostClick={(post) => {
                 setSelectedPost(post);
+                setCommunityPostBackScreen('community');
                 setCurrentScreen('communityPost');
               }}
               onWriteClick={() => setCurrentScreen('communityWrite')}
@@ -392,8 +408,9 @@ export default function App() {
             <CommunityPostScreen
               post={selectedPost}
               onBack={() => {
-                setCurrentScreen('community');
+                setCurrentScreen(communityPostBackScreen);
                 setSelectedPost(null);
+                setCommunityPostBackScreen('community');
               }}
             />
           )}
@@ -599,7 +616,10 @@ export default function App() {
           )}
 
           {currentScreen === 'myCommunity' && (
-            <MyCommunityScreen onBack={() => setCurrentScreen('my')} />
+            <MyCommunityScreen
+              onBack={() => setCurrentScreen('my')}
+              onActivityPress={handleCommunityActivityPress}
+            />
           )}
 
           {currentScreen === 'settings' && (
@@ -608,6 +628,8 @@ export default function App() {
               onLogout={() => {
                 logout();
                 clearChildProfile();
+                setSelectedPost(null);
+                setCommunityPostBackScreen('community');
                 setSelectedProgram(null);
                 setApplicationInfo(null);
                 setPaymentSummary(null);
