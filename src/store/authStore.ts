@@ -19,6 +19,9 @@ interface AuthState {
   logout: () => void;
 }
 
+const ACCESS_TOKEN_KEY = 'access_token';
+const REFRESH_TOKEN_KEY = 'refresh_token';
+
 const secureStorage = {
   getItem: async (name: string) => {
     return (await SecureStore.getItemAsync(name)) ?? null;
@@ -39,22 +42,30 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isLoggedIn: false,
 
-      setTokens: (access, refresh) =>
+      setTokens: (access, refresh) => {
+        SecureStore.setItemAsync(ACCESS_TOKEN_KEY, access);
+        SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refresh);
+
         set({
           accessToken: access,
           refreshToken: refresh,
           isLoggedIn: true,
-        }),
+        });
+      },
 
       setUser: (user) => set({ user }),
 
-      logout: () =>
+      logout: () => {
+        SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+        SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+
         set({
           accessToken: null,
           refreshToken: null,
           user: null,
           isLoggedIn: false,
-        }),
+        });
+      },
     }),
     {
       name: 'auth-storage',

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { ProgramDetail } from '../program/ProgramDetailScreen';
+import client from '../../api/client';
 
 export interface ApplicationInfo {
   childName: string;
@@ -22,12 +24,33 @@ export interface ApplicationInfo {
   agreedRefund: boolean;
 }
 
+export interface CreatedApplication {
+  applicationId: number;
+  programId: number;
+  programTitle: string;
+  reserveNo: number;
+  applicationStatus: string;
+  seatLockedUntil: string;
+  remainCapacity: number;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  code: string;
+  message: string;
+  data: T;
+}
+
 interface ApplicationFormScreenProps {
   program: ProgramDetail;
+  childId?: number;
   initialChildName?: string;
   initialParentName?: string;
   onBack: () => void;
-  onNext: (info: ApplicationInfo) => void;
+  onNext: (
+    info: ApplicationInfo,
+    createdApplication: CreatedApplication,
+  ) => void;
   onGoHome: () => void;
 }
 
@@ -48,6 +71,8 @@ const PALETTE = {
   blueSoft: '#F2F8FF',
   blueBorder: '#D7EAFE',
   red: '#D85B52',
+  redSoft: '#FFF3F1',
+  redBorder: '#FAD9D4',
 };
 
 function getAIStartMessage(childName: string) {
@@ -66,6 +91,7 @@ function getAIStartMessage(childName: string) {
 
 export default function ApplicationFormScreen({
   program,
+  childId,
   initialChildName = '',
   initialParentName = '',
   onBack,
@@ -86,6 +112,11 @@ export default function ApplicationFormScreen({
     refund: false,
   });
 
+  const [submitStatus, setSubmitStatus] = useState<
+    'idle' | 'submitting' | 'failed'
+  >('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+
   const aiStartMessage = getAIStartMessage(form.childName);
 
   const canProceed =
@@ -95,6 +126,8 @@ export default function ApplicationFormScreen({
     agreements.service &&
     agreements.privacy &&
     agreements.refund;
+
+  const isSubmitting = submitStatus === 'submitting';
 
   const handleAgreeAll = () => {
     const nextValue = !agreements.all;
@@ -118,12 +151,21 @@ export default function ApplicationFormScreen({
     setAgreements(next);
   };
 
-  const handleNext = () => {
-    if (!canProceed) {
+  const handleNext = async () => {
+    if (!canProceed || isSubmitting) {
       return;
     }
 
-    onNext({
+    if (!childId) {
+      setSubmitStatus('failed');
+      setErrorMessage('등록된 자녀 ID가 없어 신청을 진행할 수 없습니다.');
+      return;
+    }
+
+    setSubmitStatus('submitting');
+    setErrorMessage('');
+
+    const applicationInfo: ApplicationInfo = {
       childName: form.childName.trim(),
       parentName: form.parentName.trim(),
       parentPhone: form.parentPhone.trim(),
@@ -132,14 +174,79 @@ export default function ApplicationFormScreen({
       agreedTerms: agreements.service,
       agreedPrivacy: agreements.privacy,
       agreedRefund: agreements.refund,
-    });
+    };
+
+    try {
+      console.log('[신청 요청]', {
+        programId: program.id,
+        programTitle: program.title,
+        childId,
+      });
+
+      const response = await client.post<ApiResponse<CreatedApplication>>(
+        '/api/applications',
+        {
+          programId: program.id,
+          childId,
+          applicantName: applicationInfo.childName,
+          parentName: applicationInfo.parentName,
+          phone: applicationInfo.parentPhone,
+          requestNote: applicationInfo.request,
+          aiStartMessage: applicationInfo.aiStartMessage,
+          agreeTerms: applicationInfo.agreedTerms,
+          agreePrivacy: applicationInfo.agreedPrivacy,
+        },
+      );
+
+      console.log('[신청 생성 성공]', response.data);
+
+      if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.message || '신청 생성에 실패했습니다.');
+      }
+
+      onNext(applicationInfo, response.data.data);
+    } catch (error: any) {
+      console.log(
+        '[신청 생성 실패]',
+        error?.response?.status,
+        error?.response?.data ?? error?.message ?? error,
+      );
+
+      setSubmitStatus('failed');
+
+      if (error?.response?.status === 401) {
+        setErrorMessage('로그인 토큰이 만료되었거나 저장되지 않았습니다.');
+        return;
+      }
+
+      if (error?.response?.status === 404) {
+        setErrorMessage(
+          error?.response?.data?.message ??
+            '프로그램 정보를 찾을 수 없습니다. 프로그램 ID를 확인해 주세요.',
+        );
+        return;
+      }
+
+      if (error?.response?.status === 409) {
+        setErrorMessage(
+          error?.response?.data?.message ??
+            '이미 신청한 프로그램이거나 현재 신청할 수 없습니다.',
+        );
+        return;
+      }
+
+      if (error?.response?.data?.message) {
+        setErrorMessage(error.response.data.message);
+        return;
+      }
+
+      setErrorMessage('신청 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    }
   };
 
   const renderCheckbox = (checked: boolean) => (
     <View style={[styles.checkbox, checked && styles.checkboxActive]}>
-      {checked && (
-        <Ionicons name="checkmark" size={13} color="#FFFFFF" />
-      )}
+      {checked && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
     </View>
   );
 
@@ -313,6 +420,13 @@ export default function ApplicationFormScreen({
           </View>
         </View>
 
+        {submitStatus === 'failed' && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={16} color={PALETTE.red} />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        )}
+
         <View style={styles.bottomSpace} />
       </ScrollView>
 
@@ -326,19 +440,29 @@ export default function ApplicationFormScreen({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.nextButton, !canProceed && styles.nextButtonDisabled]}
+          style={[
+            styles.nextButton,
+            (!canProceed || isSubmitting) && styles.nextButtonDisabled,
+          ]}
           onPress={handleNext}
-          disabled={!canProceed}
+          disabled={!canProceed || isSubmitting}
           activeOpacity={0.85}
         >
-          <Text
-            style={[
-              styles.nextButtonText,
-              !canProceed && styles.nextButtonTextDisabled,
-            ]}
-          >
-            다음
-          </Text>
+          {isSubmitting ? (
+            <View style={styles.processingRow}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.nextButtonText}>신청 생성중...</Text>
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.nextButtonText,
+                !canProceed && styles.nextButtonTextDisabled,
+              ]}
+            >
+              다음
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -428,7 +552,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 18,
   },
   programIconBox: {
     width: 48,
@@ -478,14 +602,14 @@ const styles = StyleSheet.create({
     color: PALETTE.subText,
   },
   section: {
-    marginBottom: 28,
+    marginBottom: 22,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
     color: PALETTE.text,
-    letterSpacing: -0.3,
-    marginBottom: 14,
+    letterSpacing: -0.25,
+    marginBottom: 11,
   },
   formCard: {
     borderRadius: 18,
@@ -499,9 +623,9 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
-    color: PALETTE.text,
+    color: PALETTE.subText,
   },
   required: {
     color: PALETTE.red,
@@ -512,47 +636,45 @@ const styles = StyleSheet.create({
     color: PALETTE.muted,
   },
   input: {
-    height: 48,
+    height: 46,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: PALETTE.border,
-    borderRadius: 15,
-    paddingHorizontal: 14,
+    borderColor: PALETTE.softBorder,
+    backgroundColor: PALETTE.softBg,
+    paddingHorizontal: 13,
     fontSize: 14,
-    fontWeight: '600',
-    color: '#2D3748',
-    backgroundColor: '#FFFFFF',
+    fontWeight: '700',
+    color: PALETTE.text,
   },
   textarea: {
-    minHeight: 104,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
+    minHeight: 110,
     borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingTop: 13,
-    paddingBottom: 13,
+    borderWidth: 1,
+    borderColor: PALETTE.softBorder,
+    backgroundColor: PALETTE.softBg,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
     fontSize: 14,
-    fontWeight: '600',
-    color: '#2D3748',
-    backgroundColor: '#FFFFFF',
-    lineHeight: 20,
+    fontWeight: '700',
+    color: PALETTE.text,
+    lineHeight: 21,
   },
   aiDateBanner: {
-    minHeight: 48,
-    borderRadius: 16,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: PALETTE.primaryBorder,
     backgroundColor: PALETTE.primarySoft,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 28,
+    paddingVertical: 13,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    marginBottom: 24,
   },
   aiIconCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -560,28 +682,25 @@ const styles = StyleSheet.create({
   aiDateText: {
     flex: 1,
     fontSize: 13,
-    lineHeight: 20,
     fontWeight: '800',
     color: PALETTE.primaryDark,
-    letterSpacing: -0.2,
+    lineHeight: 19,
   },
   termsBox: {
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: PALETTE.border,
-    borderRadius: 18,
-    overflow: 'hidden',
     backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
   },
   termsAllRow: {
     minHeight: 52,
     paddingHorizontal: 15,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: PALETTE.softBorder,
-    backgroundColor: PALETTE.primarySoft,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.softBorder,
   },
   termsAllText: {
     fontSize: 14,
@@ -589,12 +708,11 @@ const styles = StyleSheet.create({
     color: PALETTE.text,
   },
   termsRow: {
-    minHeight: 50,
+    minHeight: 48,
     paddingHorizontal: 15,
-    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   termsRowBorder: {
     borderBottomWidth: 1,
@@ -602,17 +720,16 @@ const styles = StyleSheet.create({
   },
   termsText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#334155',
-    letterSpacing: -0.2,
+    color: PALETTE.subText,
   },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.8,
-    borderColor: '#D1D5DB',
+    width: 19,
+    height: 19,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
@@ -621,33 +738,43 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.primary,
     backgroundColor: PALETTE.primary,
   },
+  errorBanner: {
+    marginTop: 4,
+    marginBottom: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.redBorder,
+    backgroundColor: PALETTE.redSoft,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '700',
+    color: PALETTE.red,
+  },
   bottomSpace: {
     height: 104,
   },
   bottomBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     borderTopWidth: 1,
     borderTopColor: PALETTE.softBorder,
-    backgroundColor: PALETTE.bg,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 28,
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 10,
   },
   homeButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    width: 52,
+    height: 50,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: PALETTE.border,
     backgroundColor: '#FFFFFF',
@@ -656,22 +783,27 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     flex: 1,
-    height: 46,
-    borderRadius: 14,
+    height: 50,
+    borderRadius: 16,
     backgroundColor: PALETTE.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   nextButtonDisabled: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#E2E8F0',
   },
   nextButtonText: {
     fontSize: 15,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -0.2,
   },
   nextButtonTextDisabled: {
-    color: '#9CA3AF',
+    color: '#94A3B8',
+  },
+  processingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
 });

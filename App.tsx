@@ -17,7 +17,10 @@ import MapScreen from './src/screens/program/MapScreen';
 
 import RecruitingScreen from './src/screens/recruiting/RecruitingScreen';
 import ApplicationFormScreen from './src/screens/application/ApplicationFormScreen';
-import type { ApplicationInfo } from './src/screens/application/ApplicationFormScreen';
+import type {
+  ApplicationInfo,
+  CreatedApplication,
+} from './src/screens/application/ApplicationFormScreen';
 import PaymentScreen from './src/screens/application/PaymentScreen';
 import type { PaymentSummary } from './src/screens/application/PaymentScreen';
 import ApplicationCompleteScreen from './src/screens/application/ApplicationCompleteScreen';
@@ -51,6 +54,8 @@ import {
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
 import BenefitScreen from './src/screens/BenefitScreen';
+
+const DEV_ACCESS_TOKEN = process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN ?? '';
 
 interface FilterData {
   ageGroup: string;
@@ -131,6 +136,8 @@ export default function App() {
 
   const [applicationInfo, setApplicationInfo] =
     useState<ApplicationInfo | null>(null);
+  const [createdApplication, setCreatedApplication] =
+    useState<CreatedApplication | null>(null);
   const [paymentSummary, setPaymentSummary] =
     useState<PaymentSummary | null>(null);
   const [selectedApplication, setSelectedApplication] =
@@ -145,6 +152,13 @@ export default function App() {
   const [profileEditBackScreen, setProfileEditBackScreen] =
     useState<Screen>('my');
 
+  const clearApplicationFlow = () => {
+    setApplicationInfo(null);
+    setCreatedApplication(null);
+    setPaymentSummary(null);
+    setSelectedApplication(null);
+  };
+
   const handleSplashFinish = () => {
     if (!isLoggedIn) {
       setCurrentScreen('login');
@@ -156,8 +170,19 @@ export default function App() {
   };
 
   const handleLoginSuccess = () => {
-    setTokens('mockAccessToken', 'mockRefreshToken');
+    setTokens(DEV_ACCESS_TOKEN || 'mockAccessToken', '');
     setCurrentScreen('home');
+  };
+
+  const handleDevLogin = () => {
+    if (!DEV_ACCESS_TOKEN) {
+      console.warn(
+        'EXPO_PUBLIC_DEV_ACCESS_TOKEN이 없습니다. 프론트 .env에 로컬 JWT를 넣어주세요.',
+      );
+      return;
+    }
+
+    setTokens(DEV_ACCESS_TOKEN, '');
   };
 
   const handleReset = () => {
@@ -166,9 +191,7 @@ export default function App() {
     setSelectedPost(null);
     setCommunityPostBackScreen('community');
     setSelectedProgram(null);
-    setApplicationInfo(null);
-    setPaymentSummary(null);
-    setSelectedApplication(null);
+    clearApplicationFlow();
     setSearchState({ query: '', searched: false });
     setProfileEditBackScreen('my');
     setTimeout(() => setCurrentScreen('splash'), 100);
@@ -178,9 +201,7 @@ export default function App() {
     setSelectedPost(null);
     setCommunityPostBackScreen('community');
     setSelectedProgram(null);
-    setApplicationInfo(null);
-    setPaymentSummary(null);
-    setSelectedApplication(null);
+    clearApplicationFlow();
     setProfileEditBackScreen('my');
     setCurrentScreen('home');
   };
@@ -197,9 +218,7 @@ export default function App() {
     setSelectedPost(null);
     setCommunityPostBackScreen('community');
     setSelectedProgram(null);
-    setApplicationInfo(null);
-    setPaymentSummary(null);
-    setSelectedApplication(null);
+    clearApplicationFlow();
     setSearchState({ query: '', searched: false });
     setProfileEditBackScreen('my');
     setTimeout(() => setCurrentScreen('splash'), 100);
@@ -212,15 +231,16 @@ export default function App() {
           <View style={styles.devPanel}>
             <TouchableOpacity
               style={[styles.devBtn, { backgroundColor: '#FFD93D' }]}
-              onPress={() => setTokens('testAccess', 'testRefresh')}
+              onPress={handleDevLogin}
             >
-              <Text style={styles.devBtnText}>로그인 상태 저장</Text>
+              <Text style={styles.devBtnText}>로컬 JWT 로그인 저장</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.devBtn, { backgroundColor: '#BAE6FD' }]}
               onPress={() =>
                 setChildProfile({
+                  id: 1,
                   name: '민서',
                   age: 7,
                   concerns: ['사회성', '미술'],
@@ -258,6 +278,7 @@ export default function App() {
               onBack={() => setCurrentScreen('login')}
               onComplete={(data) => {
                 setChildProfile({
+                  id: 1,
                   name: data.childName,
                   age: data.age,
                   concerns: data.concerns,
@@ -337,9 +358,7 @@ export default function App() {
               onProgramClick={(program) => {
                 setSelectedProgram(program);
                 setProgramDetailBackScreen('recommendation');
-                setApplicationInfo(null);
-                setPaymentSummary(null);
-                setSelectedApplication(null);
+                clearApplicationFlow();
                 setCurrentScreen('programDetail');
               }}
             />
@@ -387,9 +406,7 @@ export default function App() {
               onProgramClick={(program) => {
                 setSelectedProgram(program);
                 setProgramDetailBackScreen('apply');
-                setApplicationInfo(null);
-                setPaymentSummary(null);
-                setSelectedApplication(null);
+                clearApplicationFlow();
                 setCurrentScreen('programDetail');
               }}
             />
@@ -436,9 +453,7 @@ export default function App() {
               }}
               onApply={(program) => {
                 setSelectedProgram(program);
-                setApplicationInfo(null);
-                setPaymentSummary(null);
-                setSelectedApplication(null);
+                clearApplicationFlow();
                 setCurrentScreen('applicationForm');
               }}
               onGoHome={handleGoHome}
@@ -448,29 +463,35 @@ export default function App() {
           {currentScreen === 'applicationForm' && selectedProgram && (
             <ApplicationFormScreen
               program={selectedProgram}
+              childId={childProfile?.id}
               initialChildName={childProfile?.name ?? ''}
               initialParentName="정아름"
               onBack={() => setCurrentScreen('programDetail')}
-              onNext={(info) => {
+              onNext={(info, application) => {
                 setApplicationInfo(info);
+                setCreatedApplication(application);
                 setCurrentScreen('payment');
               }}
               onGoHome={handleGoHome}
             />
           )}
 
-          {currentScreen === 'payment' && selectedProgram && applicationInfo && (
-            <PaymentScreen
-              program={selectedProgram}
-              applicationInfo={applicationInfo}
-              onBack={() => setCurrentScreen('applicationForm')}
-              onComplete={(summary) => {
-                setPaymentSummary(summary);
-                setCurrentScreen('applicationComplete');
-              }}
-              onGoHome={handleGoHome}
-            />
-          )}
+          {currentScreen === 'payment' &&
+            selectedProgram &&
+            applicationInfo &&
+            createdApplication && (
+              <PaymentScreen
+                program={selectedProgram}
+                applicationInfo={applicationInfo}
+                createdApplication={createdApplication}
+                onBack={() => setCurrentScreen('applicationForm')}
+                onComplete={(summary) => {
+                  setPaymentSummary(summary);
+                  setCurrentScreen('applicationComplete');
+                }}
+                onGoHome={handleGoHome}
+              />
+            )}
 
           {currentScreen === 'applicationComplete' &&
             selectedProgram &&
@@ -482,9 +503,7 @@ export default function App() {
                 paymentSummary={paymentSummary}
                 onGoApplications={() => {
                   setSelectedProgram(null);
-                  setApplicationInfo(null);
-                  setPaymentSummary(null);
-                  setSelectedApplication(null);
+                  clearApplicationFlow();
                   setCurrentScreen('myApplications');
                 }}
                 onGoHome={handleGoHome}
@@ -558,9 +577,7 @@ export default function App() {
               onSelectProgram={(program) => {
                 setSelectedProgram(program);
                 setProgramDetailBackScreen('search');
-                setApplicationInfo(null);
-                setPaymentSummary(null);
-                setSelectedApplication(null);
+                clearApplicationFlow();
                 setCurrentScreen('programDetail');
               }}
             />
@@ -613,9 +630,7 @@ export default function App() {
 
                 setSelectedProgram(savedProgramDetail);
                 setProgramDetailBackScreen('savedList');
-                setApplicationInfo(null);
-                setPaymentSummary(null);
-                setSelectedApplication(null);
+                clearApplicationFlow();
                 setCurrentScreen('programDetail');
               }}
             />
