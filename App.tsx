@@ -22,6 +22,8 @@ import PaymentScreen from './src/screens/application/PaymentScreen';
 import type { PaymentSummary } from './src/screens/application/PaymentScreen';
 import ApplicationCompleteScreen from './src/screens/application/ApplicationCompleteScreen';
 import MyApplicationsScreen from './src/screens/application/MyApplicationsScreen';
+import type { Application } from './src/screens/application/MyApplicationsScreen';
+import ApplicationDetailScreen from './src/screens/application/ApplicationDetailScreen';
 
 import CommunityScreen from './src/screens/community/CommunityScreen';
 import type { Post } from './src/screens/community/CommunityScreen';
@@ -40,7 +42,11 @@ import NotificationSettingsScreen from './src/screens/notification/NotificationS
 
 import SearchScreen from './src/screens/search/SearchScreen';
 
-import { useAuthStore, useProfileStore, useRecommendFilterStore } from './src/store';
+import {
+  useAuthStore,
+  useProfileStore,
+  useRecommendFilterStore,
+} from './src/store';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
 import BenefitScreen from './src/screens/BenefitScreen';
@@ -82,6 +88,7 @@ type Screen =
   | 'notificationSettings'
   | 'profileEdit'
   | 'myApplications'
+  | 'applicationDetail'
   | 'aiReport'
   | 'search'
   | 'savedList'
@@ -167,7 +174,8 @@ export default function App() {
   });
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [selectedProgram, setSelectedProgram] = useState<ProgramDetail | null>(null);
+  const [selectedProgram, setSelectedProgram] =
+    useState<ProgramDetail | null>(null);
   const [programDetailBackScreen, setProgramDetailBackScreen] =
     useState<Screen>('recommendation');
 
@@ -175,6 +183,8 @@ export default function App() {
     useState<ApplicationInfo | null>(null);
   const [paymentSummary, setPaymentSummary] =
     useState<PaymentSummary | null>(null);
+  const [selectedApplication, setSelectedApplication] =
+    useState<Application | null>(null);
 
   const [searchState, setSearchState] = useState<SearchScreenState>({
     query: '',
@@ -204,6 +214,7 @@ export default function App() {
     setSelectedProgram(null);
     setApplicationInfo(null);
     setPaymentSummary(null);
+    setSelectedApplication(null);
     setSearchState({ query: '', searched: false });
     setTimeout(() => setCurrentScreen('splash'), 100);
   };
@@ -212,6 +223,7 @@ export default function App() {
     setSelectedProgram(null);
     setApplicationInfo(null);
     setPaymentSummary(null);
+    setSelectedApplication(null);
     setCurrentScreen('home');
   };
 
@@ -351,6 +363,7 @@ export default function App() {
                 setProgramDetailBackScreen('recommendation');
                 setApplicationInfo(null);
                 setPaymentSummary(null);
+                setSelectedApplication(null);
                 setCurrentScreen('programDetail');
               }}
             />
@@ -370,6 +383,7 @@ export default function App() {
                 setSelectedProgram(null);
                 setApplicationInfo(null);
                 setPaymentSummary(null);
+                setSelectedApplication(null);
                 setSearchState({ query: '', searched: false });
                 setTimeout(() => setCurrentScreen('splash'), 100);
               }}
@@ -379,7 +393,10 @@ export default function App() {
                 setCurrentScreen('profileEdit');
               }}
               onNavigate={(screen) => {
-                if (screen === 'applications') setCurrentScreen('myApplications');
+                if (screen === 'applications') {
+                  setSelectedApplication(null);
+                  setCurrentScreen('myApplications');
+                }
                 if (screen === 'saved') setCurrentScreen('savedList');
                 if (screen === 'community') setCurrentScreen('myCommunity');
                 if (screen === 'settings') setCurrentScreen('settings');
@@ -387,8 +404,6 @@ export default function App() {
               }}
             />
           )}
-
-
 
           {currentScreen === 'apply' && (
             <RecruitingScreen
@@ -400,6 +415,7 @@ export default function App() {
                 setProgramDetailBackScreen('apply');
                 setApplicationInfo(null);
                 setPaymentSummary(null);
+                setSelectedApplication(null);
                 setCurrentScreen('programDetail');
               }}
             />
@@ -446,6 +462,7 @@ export default function App() {
                 setSelectedProgram(program);
                 setApplicationInfo(null);
                 setPaymentSummary(null);
+                setSelectedApplication(null);
                 setCurrentScreen('applicationForm');
               }}
               onGoHome={handleGoHome}
@@ -491,6 +508,7 @@ export default function App() {
                   setSelectedProgram(null);
                   setApplicationInfo(null);
                   setPaymentSummary(null);
+                  setSelectedApplication(null);
                   setCurrentScreen('myApplications');
                 }}
                 onGoHome={handleGoHome}
@@ -519,7 +537,26 @@ export default function App() {
           )}
 
           {currentScreen === 'myApplications' && (
-            <MyApplicationsScreen onBack={() => setCurrentScreen('my')} />
+            <MyApplicationsScreen
+              onBack={() => {
+                setSelectedApplication(null);
+                setCurrentScreen('my');
+              }}
+              onApplicationPress={(application) => {
+                setSelectedApplication(application);
+                setCurrentScreen('applicationDetail');
+              }}
+            />
+          )}
+
+          {currentScreen === 'applicationDetail' && selectedApplication && (
+            <ApplicationDetailScreen
+              application={selectedApplication}
+              onBack={() => {
+                setSelectedApplication(null);
+                setCurrentScreen('myApplications');
+              }}
+            />
           )}
 
           {currentScreen === 'aiReport' && (
@@ -549,6 +586,7 @@ export default function App() {
                 setProgramDetailBackScreen('search');
                 setApplicationInfo(null);
                 setPaymentSummary(null);
+                setSelectedApplication(null);
                 setCurrentScreen('programDetail');
               }}
             />
@@ -575,6 +613,7 @@ export default function App() {
                 setSelectedProgram(null);
                 setApplicationInfo(null);
                 setPaymentSummary(null);
+                setSelectedApplication(null);
                 setSearchState({ query: '', searched: false });
                 setTimeout(() => setCurrentScreen('splash'), 100);
               }}
