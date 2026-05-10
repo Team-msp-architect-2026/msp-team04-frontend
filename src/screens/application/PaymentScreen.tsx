@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,9 +10,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import type { ProgramDetail } from '../program/ProgramDetailScreen';
-import type { ApplicationInfo } from './ApplicationFormScreen';
+import type {
+  ApplicationInfo,
+  CreatedApplication,
+} from './ApplicationFormScreen';
+import client from '../../api/client';
 
 export interface PaymentSummary {
   originalAmount: number;
@@ -24,12 +31,56 @@ export interface PaymentSummary {
 interface PaymentScreenProps {
   program: ProgramDetail;
   applicationInfo: ApplicationInfo;
+  createdApplication: CreatedApplication;
   onBack: () => void;
   onComplete: (summary: PaymentSummary) => void;
   onGoHome: () => void;
 }
 
-type PaymentStatus = 'idle' | 'processing' | 'failed';
+type PaymentStatus = 'idle' | 'preparing' | 'webview' | 'confirming' | 'failed';
+
+interface ApiResponse<T> {
+  success: boolean;
+  code: string;
+  message: string;
+  data: T;
+}
+
+interface PaymentPrepareResponse {
+  paymentId: number;
+  applicationId: number;
+  orderId: string;
+  orderName: string;
+  amount: number;
+  clientKey: string;
+  successUrl: string;
+  failUrl: string;
+  paymentMethod: 'TOSS_PAYMENTS' | 'FREE';
+  paymentStatus: 'READY' | 'APPROVED' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  applicationStatus:
+    | 'PENDING'
+    | 'PAYMENT_READY'
+    | 'CONFIRMED'
+    | 'CANCELLED'
+    | 'FAILED';
+}
+
+interface PaymentConfirmResponse {
+  paymentId: number;
+  applicationId: number;
+  orderId: string;
+  amount: number;
+  paymentMethod: 'TOSS_PAYMENTS' | 'FREE';
+  paymentStatus: 'READY' | 'APPROVED' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  applicationStatus:
+    | 'PENDING'
+    | 'PAYMENT_READY'
+    | 'CONFIRMED'
+    | 'CANCELLED'
+    | 'FAILED';
+  approvedAt?: string;
+  cancelledAt?: string;
+}
 
 const SUBSIDY_AMOUNT = 30000;
 const FIRST_MONTH_DISCOUNT = 5000;
@@ -89,42 +140,365 @@ function formatPrice(value: number): string {
   return `${value.toLocaleString('ko-KR')}원`;
 }
 
+function getQueryParam(url: string, key: string) {
+  const queryString = url.split('?')[1] ?? '';
+  const params = new URLSearchParams(queryString);
+
+  return params.get(key);
+}
+
+function isExternalAppUrl(url: string) {
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('about:blank') ||
+    url.startsWith('data:')
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function createTossPaymentHtml(prepare: PaymentPrepareResponse) {
+  const safeClientKey = JSON.stringify(prepare.clientKey);
+  const safeAmount = JSON.stringify(prepare.amount);
+  const safeOrderId = JSON.stringify(prepare.orderId);
+  const safeOrderName = JSON.stringify(prepare.orderName);
+  const safeSuccessUrl = JSON.stringify(prepare.successUrl);
+  const safeFailUrl = JSON.stringify(prepare.failUrl);
+
+  return `
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
+    <script src="https://js.tosspayments.com/v1/payment"></script>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100%;
+        background: #f8fafc;
+        font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      }
+      .wrap {
+        min-height: 100vh;
+        padding: 28px 20px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .card {
+        background: #ffffff;
+        border: 1px solid #e8edf3;
+        border-radius: 24px;
+        padding: 24px 20px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 14px;
+        background: #eef3ff;
+        color: #4d5fd2;
+        font-size: 12px;
+        font-weight: 800;
+        margin-bottom: 16px;
+      }
+      h1 {
+        margin: 0;
+        color: #111827;
+        font-size: 22px;
+        line-height: 30px;
+        letter-spacing: -0.6px;
+      }
+      p {
+        margin: 10px 0 0;
+        color: #64748b;
+        font-size: 14px;
+        line-height: 22px;
+      }
+      .amount {
+        margin-top: 22px;
+        padding: 16px;
+        border-radius: 18px;
+        background: #f8fafc;
+        border: 1px solid #eef2f6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .amount span {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .amount strong {
+        color: #111827;
+        font-size: 18px;
+        font-weight: 900;
+      }
+      .loading {
+        margin-top: 18px;
+        color: #94a3b8;
+        font-size: 12px;
+        line-height: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="badge">토스페이먼츠 테스트 결제</div>
+        <h1>결제창을 준비하고 있어요</h1>
+        <p>잠시 후 토스페이먼츠 테스트 결제창으로 이동합니다.</p>
+        <div class="amount">
+          <span>결제 금액</span>
+          <strong>${Number(prepare.amount).toLocaleString('ko-KR')}원</strong>
+        </div>
+        <div class="loading">화면이 이동하지 않으면 뒤로가기 후 다시 시도해 주세요.</div>
+      </div>
+    </div>
+
+    <script>
+      window.onload = function () {
+        try {
+          var tossPayments = TossPayments(${safeClientKey});
+
+          tossPayments.requestPayment('카드', {
+            amount: ${safeAmount},
+            orderId: ${safeOrderId},
+            orderName: ${safeOrderName},
+            successUrl: ${safeSuccessUrl},
+            failUrl: ${safeFailUrl}
+          });
+        } catch (error) {
+          window.location.href =
+            ${safeFailUrl} +
+            '?code=CLIENT_PAYMENT_ERROR&message=' +
+            encodeURIComponent(error && error.message ? error.message : '결제창을 열 수 없습니다.') +
+            '&orderId=' +
+            encodeURIComponent(${safeOrderId});
+        }
+      };
+    </script>
+  </body>
+</html>
+`;
+}
+
 export default function PaymentScreen({
   program,
   applicationInfo,
+  createdApplication,
   onBack,
   onComplete,
   onGoHome,
 }: PaymentScreenProps) {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [payAgreed, setPayAgreed] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [paymentPrepare, setPaymentPrepare] =
+    useState<PaymentPrepareResponse | null>(null);
+  const [webViewKey, setWebViewKey] = useState(0);
 
   const pricing = calcFinalPrice(program);
   const subsidyApplicable = getSubsidyApplicable(program);
   const isFree = program.priceValue === 0;
   const canProceedPayment = payAgreed;
+  const isProcessing =
+    paymentStatus === 'preparing' || paymentStatus === 'confirming';
+
+  const paymentHtml = useMemo(() => {
+    if (!paymentPrepare) {
+      return '';
+    }
+
+    return createTossPaymentHtml(paymentPrepare);
+  }, [paymentPrepare]);
+
+  const completePayment = (
+    method: PaymentSummary['paymentMethod'],
+    approvedAt?: string,
+  ) => {
+    onComplete({
+      ...pricing,
+      paymentMethod: method,
+      approvedAt: approvedAt ?? new Date().toISOString(),
+    });
+  };
 
   const handlePayment = async () => {
-    if (!canProceedPayment) {
+    if (!canProceedPayment || isProcessing) {
       return;
     }
 
-    setPaymentStatus('processing');
+    setPaymentStatus('preparing');
+    setErrorMessage('');
 
-    await new Promise(resolve => setTimeout(resolve, 1200));
+    try {
+      const response = await client.post<ApiResponse<PaymentPrepareResponse>>(
+        '/api/payments/toss/prepare',
+        {
+          applicationId: createdApplication.applicationId,
+        },
+      );
 
-    onComplete({
-      ...pricing,
-      paymentMethod: isFree ? 'free' : 'toss',
-      approvedAt: new Date().toISOString(),
-    });
+      if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.message || '결제 준비에 실패했습니다.');
+      }
+
+      const prepare = response.data.data;
+
+      if (prepare.paymentMethod === 'FREE') {
+        completePayment('free');
+        return;
+      }
+
+      if (
+        !prepare.clientKey ||
+        !prepare.orderId ||
+        !prepare.amount ||
+        !prepare.successUrl ||
+        !prepare.failUrl
+      ) {
+        throw new Error('결제창 실행에 필요한 정보가 부족합니다.');
+      }
+
+      setPaymentPrepare(prepare);
+      setWebViewKey(prev => prev + 1);
+      setPaymentStatus('webview');
+    } catch (error) {
+      setPaymentStatus('failed');
+      setErrorMessage('결제 준비에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  };
+
+  const handleConfirmPayment = async (
+    paymentKey: string,
+    orderId: string,
+    amount: number,
+  ) => {
+    setPaymentStatus('confirming');
+    setErrorMessage('');
+
+    try {
+      const response = await client.post<ApiResponse<PaymentConfirmResponse>>(
+        '/api/payments/toss/confirm',
+        {
+          paymentKey,
+          orderId,
+          amount,
+        },
+      );
+
+      if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.message || '결제 승인에 실패했습니다.');
+      }
+
+      const result = response.data.data;
+
+      setPaymentPrepare(null);
+      completePayment('toss', result.approvedAt);
+    } catch (error) {
+      setPaymentPrepare(null);
+      setPaymentStatus('failed');
+      setErrorMessage('결제 승인에 실패했습니다. 다시 시도해 주세요.');
+    }
+  };
+
+  const handleFailPayment = async (
+    orderId: string | null,
+    failureCode: string | null,
+    failureMessage: string | null,
+  ) => {
+    setPaymentPrepare(null);
+    setPaymentStatus('failed');
+    setErrorMessage(
+      failureMessage || '결제가 취소되었거나 실패했습니다. 다시 시도해 주세요.',
+    );
+
+    if (!orderId) {
+      return;
+    }
+
+    try {
+      await client.post('/api/payments/toss/fail', {
+        orderId,
+        failureCode: failureCode ?? 'PAYMENT_FAILED',
+        failureMessage:
+          failureMessage ?? '결제가 취소되었거나 실패했습니다.',
+      });
+    } catch (error) {
+      console.log('결제 실패 콜백 저장 실패:', error);
+    }
+  };
+
+  const handleWebViewNavigation = (navState: { url: string }) => {
+    const { url } = navState;
+
+    if (isExternalAppUrl(url)) {
+      Linking.openURL(url).catch(() => {
+        setPaymentPrepare(null);
+        setPaymentStatus('failed');
+        setErrorMessage(
+          '선택한 결제수단 앱을 열 수 없습니다. 카드 결제 또는 다른 결제수단으로 다시 시도해 주세요.',
+        );
+      });
+
+      return false;
+    }
+
+    if (!paymentPrepare) {
+      return true;
+    }
+
+    if (url.startsWith(paymentPrepare.successUrl)) {
+      const paymentKey = getQueryParam(url, 'paymentKey');
+      const orderId = getQueryParam(url, 'orderId');
+      const amountParam = getQueryParam(url, 'amount');
+      const amount = Number(amountParam);
+
+      if (paymentKey && orderId && Number.isFinite(amount)) {
+        handleConfirmPayment(paymentKey, orderId, amount);
+      } else {
+        setPaymentPrepare(null);
+        setPaymentStatus('failed');
+        setErrorMessage('결제 승인 정보가 올바르지 않습니다.');
+      }
+
+      return false;
+    }
+
+    if (url.startsWith(paymentPrepare.failUrl)) {
+      const orderId = getQueryParam(url, 'orderId');
+      const code = getQueryParam(url, 'code');
+      const message = getQueryParam(url, 'message');
+
+      handleFailPayment(orderId, code, message);
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleCloseWebView = () => {
+    setPaymentPrepare(null);
+    setPaymentStatus('idle');
   };
 
   const renderCheckbox = (checked: boolean) => (
     <View style={[styles.checkbox, checked && styles.checkboxActive]}>
-      {checked && (
-        <Ionicons name="checkmark" size={13} color="#FFFFFF" />
-      )}
+      {checked && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
     </View>
   );
 
@@ -300,9 +674,7 @@ export default function PaymentScreen({
         {paymentStatus === 'failed' && (
           <View style={styles.errorBanner}>
             <Ionicons name="alert-circle-outline" size={16} color={PALETTE.red} />
-            <Text style={styles.errorText}>
-              결제에 실패했습니다. 다시 시도해 주세요.
-            </Text>
+            <Text style={styles.errorText}>{errorMessage}</Text>
           </View>
         )}
 
@@ -334,17 +706,18 @@ export default function PaymentScreen({
         <TouchableOpacity
           style={[
             styles.paymentButton,
-            (!canProceedPayment || paymentStatus === 'processing') &&
-              styles.paymentButtonDisabled,
+            (!canProceedPayment || isProcessing) && styles.paymentButtonDisabled,
           ]}
           onPress={handlePayment}
-          disabled={!canProceedPayment || paymentStatus === 'processing'}
+          disabled={!canProceedPayment || isProcessing}
           activeOpacity={0.85}
         >
-          {paymentStatus === 'processing' ? (
+          {isProcessing ? (
             <View style={styles.processingRow}>
               <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text style={styles.paymentButtonText}>처리중...</Text>
+              <Text style={styles.paymentButtonText}>
+                {paymentStatus === 'confirming' ? '승인중...' : '처리중...'}
+              </Text>
             </View>
           ) : (
             <Text
@@ -360,6 +733,51 @@ export default function PaymentScreen({
           )}
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={paymentStatus === 'webview' && !!paymentPrepare}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={handleCloseWebView}
+      >
+        <SafeAreaView style={styles.webViewContainer} edges={['top']}>
+          <View style={styles.webViewHeader}>
+            <TouchableOpacity
+              style={styles.webViewCloseButton}
+              onPress={handleCloseWebView}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="close" size={23} color={PALETTE.text} />
+            </TouchableOpacity>
+
+            <Text style={styles.webViewTitle}>토스페이먼츠 결제</Text>
+
+            <View style={styles.webViewCloseButton} />
+          </View>
+
+          {paymentHtml !== '' && (
+            <WebView
+              key={webViewKey}
+              originWhitelist={['*']}
+              source={{ html: paymentHtml }}
+              javaScriptEnabled
+              domStorageEnabled
+              setSupportMultipleWindows={false}
+              onShouldStartLoadWithRequest={handleWebViewNavigation}
+              onNavigationStateChange={handleWebViewNavigation}
+              startInLoadingState
+              renderLoading={() => (
+                <View style={styles.webViewLoading}>
+                  <ActivityIndicator size="small" color={PALETTE.primary} />
+                  <Text style={styles.webViewLoadingText}>
+                    결제창을 불러오는 중입니다
+                  </Text>
+                </View>
+              )}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -526,36 +944,27 @@ const styles = StyleSheet.create({
     color: PALETTE.muted,
   },
   applicantValue: {
+    flex: 1,
+    textAlign: 'right',
     fontSize: 13,
     fontWeight: '800',
     color: '#334155',
   },
-  section: {
-    marginBottom: 26,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: PALETTE.text,
-    letterSpacing: -0.3,
-    marginBottom: 14,
-  },
   subsidyBanner: {
-    minHeight: 66,
-    borderRadius: 17,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: PALETTE.primaryBorder,
     backgroundColor: PALETTE.primarySoft,
     padding: 14,
-    marginBottom: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 11,
+    marginBottom: 24,
   },
   subsidyIconCircle: {
     width: 38,
     height: 38,
-    borderRadius: 14,
+    borderRadius: 15,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -567,31 +976,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
     color: PALETTE.primaryDark,
-    letterSpacing: -0.2,
   },
   subsidyDesc: {
-    marginTop: 3,
+    marginTop: 4,
     fontSize: 12,
     fontWeight: '600',
     color: '#6574B6',
     lineHeight: 18,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.25,
+    marginBottom: 11,
   },
   orderCard: {
     borderRadius: 18,
     borderWidth: 1,
     borderColor: PALETTE.border,
     backgroundColor: '#FFFFFF',
-    padding: 15,
+    paddingHorizontal: 15,
+    paddingTop: 14,
   },
   orderRow: {
-    minHeight: 30,
+    minHeight: 40,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
   },
   orderLabel: {
     flex: 1,
+    paddingRight: 14,
     fontSize: 13,
     fontWeight: '700',
     color: PALETTE.subText,
@@ -604,47 +1024,46 @@ const styles = StyleSheet.create({
   orderDiscountValue: {
     fontSize: 13,
     fontWeight: '900',
-    color: PALETTE.primary,
+    color: PALETTE.primaryDark,
   },
   orderTotalRow: {
-    marginTop: 10,
-    paddingTop: 13,
+    marginTop: 5,
+    minHeight: 54,
     borderTopWidth: 1,
     borderTopColor: PALETTE.softBorder,
   },
   orderTotalLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
     color: PALETTE.text,
   },
   orderTotalValue: {
-    fontSize: 21,
+    fontSize: 18,
     fontWeight: '900',
-    color: PALETTE.text,
-    letterSpacing: -0.6,
+    color: PALETTE.primaryDark,
+    letterSpacing: -0.35,
   },
   tossOnlyCard: {
-    minHeight: 72,
+    minHeight: 74,
     borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: PALETTE.primaryBorder,
-    backgroundColor: PALETTE.primarySoft,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.blueBorder,
+    backgroundColor: PALETTE.blueSoft,
+    paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   tossIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
+    width: 42,
+    height: 42,
+    borderRadius: 16,
     backgroundColor: PALETTE.toss,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tossIconText: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '900',
     color: '#FFFFFF',
   },
@@ -654,42 +1073,44 @@ const styles = StyleSheet.create({
   tossTitle: {
     fontSize: 14,
     fontWeight: '900',
-    color: PALETTE.primaryDark,
+    color: PALETTE.blueDark,
   },
   tossDescription: {
-    marginTop: 3,
+    marginTop: 4,
     fontSize: 12,
     fontWeight: '700',
-    color: PALETTE.subText,
+    color: '#5C8BC8',
   },
   noticeBanner: {
-    borderRadius: 16,
+    borderRadius: 15,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: PALETTE.primaryBorder,
-    backgroundColor: PALETTE.primarySoft,
-    padding: 13,
-    marginBottom: 18,
+    borderColor: PALETTE.softBorder,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 9,
+    gap: 8,
+    marginBottom: 14,
   },
   noticeText: {
     flex: 1,
     fontSize: 12,
-    fontWeight: '700',
-    color: PALETTE.primaryDark,
+    fontWeight: '600',
+    color: PALETTE.subText,
     lineHeight: 18,
   },
   errorBanner: {
-    borderRadius: 16,
+    borderRadius: 15,
+    backgroundColor: PALETTE.redSoft,
     borderWidth: 1,
     borderColor: PALETTE.redBorder,
-    backgroundColor: PALETTE.redSoft,
-    padding: 13,
-    marginBottom: 18,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 9,
+    gap: 8,
+    marginBottom: 14,
   },
   errorText: {
     flex: 1,
@@ -699,69 +1120,55 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   payAgreeRow: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    backgroundColor: '#FFFFFF',
-    padding: 14,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 10,
+    gap: 9,
+    marginBottom: 18,
+  },
+  checkbox: {
+    width: 19,
+    height: 19,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    marginTop: 1,
+  },
+  checkboxActive: {
+    borderColor: PALETTE.primary,
+    backgroundColor: PALETTE.primary,
   },
   payAgreeText: {
     flex: 1,
     fontSize: 12,
     fontWeight: '600',
     color: PALETTE.subText,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   payAgreeUnderline: {
-    textDecorationLine: 'underline',
+    fontWeight: '900',
     color: PALETTE.text,
-    fontWeight: '800',
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.8,
-    borderColor: '#D1D5DB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  checkboxActive: {
-    borderColor: PALETTE.primary,
-    backgroundColor: PALETTE.primary,
+    textDecorationLine: 'underline',
   },
   bottomSpace: {
-    height: 104,
+    height: 106,
   },
   bottomBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     borderTopWidth: 1,
     borderTopColor: PALETTE.softBorder,
-    backgroundColor: PALETTE.bg,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 28,
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 10,
   },
   homeButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    width: 52,
+    height: 50,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: PALETTE.border,
     backgroundColor: '#FFFFFF',
@@ -770,27 +1177,71 @@ const styles = StyleSheet.create({
   },
   paymentButton: {
     flex: 1,
-    height: 46,
-    borderRadius: 14,
+    height: 50,
+    borderRadius: 16,
     backgroundColor: PALETTE.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   paymentButtonDisabled: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#E2E8F0',
   },
   paymentButtonText: {
     fontSize: 15,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -0.2,
   },
   paymentButtonTextDisabled: {
-    color: '#9CA3AF',
+    color: '#94A3B8',
   },
   processingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
+  },
+  webViewContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  webViewHeader: {
+    height: 52,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.softBorder,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  webViewCloseButton: {
+    width: 54,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webViewTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '900',
+    color: PALETTE.text,
+    letterSpacing: -0.25,
+  },
+  webViewLoading: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    gap: 10,
+  },
+  webViewLoadingText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: PALETTE.subText,
   },
 });

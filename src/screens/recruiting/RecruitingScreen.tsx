@@ -131,7 +131,7 @@ const URGENCY_LABELS: Record<
 
 const AVAILABLE_PROGRAMS: RecruitingProgram[] = [
   {
-    id: 101,
+    id: 3,
     title: '창의력 쑥쑥 미술 놀이',
     organization: '아트키즈 스튜디오',
     type: 'private',
@@ -165,7 +165,7 @@ const AVAILABLE_PROGRAMS: RecruitingProgram[] = [
     endDate: '2026.06.30',
   },
   {
-    id: 102,
+    id: 4,
     title: '구립 어린이 창의교실',
     organization: '강남구청',
     type: 'public',
@@ -198,7 +198,7 @@ const AVAILABLE_PROGRAMS: RecruitingProgram[] = [
     endDate: '2026.07.05',
   },
   {
-    id: 103,
+    id: 6,
     title: '키즈 영어 스피킹 클래스',
     organization: '스마트 에듀',
     type: 'private',
@@ -231,7 +231,7 @@ const AVAILABLE_PROGRAMS: RecruitingProgram[] = [
     endDate: '2026.07.30',
   },
   {
-    id: 104,
+    id: 8,
     title: '초등 코딩 부트캠프',
     organization: '코드키즈',
     type: 'online',
@@ -264,7 +264,7 @@ const AVAILABLE_PROGRAMS: RecruitingProgram[] = [
     endDate: '2026.08.15',
   },
   {
-    id: 105,
+    id: 10,
     title: '아이돌봄 서비스',
     organization: '여성가족부',
     type: 'government',
