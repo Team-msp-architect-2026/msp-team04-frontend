@@ -123,6 +123,7 @@ export default function App() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [communityPostBackScreen, setCommunityPostBackScreen] =
     useState<Screen>('community');
+
   const [selectedProgram, setSelectedProgram] =
     useState<ProgramDetail | null>(null);
   const [programDetailBackScreen, setProgramDetailBackScreen] =
@@ -141,6 +142,8 @@ export default function App() {
   });
 
   const [editUserName, setEditUserName] = useState<string>('');
+  const [profileEditBackScreen, setProfileEditBackScreen] =
+    useState<Screen>('my');
 
   const handleSplashFinish = () => {
     if (!isLoggedIn) {
@@ -167,6 +170,7 @@ export default function App() {
     setPaymentSummary(null);
     setSelectedApplication(null);
     setSearchState({ query: '', searched: false });
+    setProfileEditBackScreen('my');
     setTimeout(() => setCurrentScreen('splash'), 100);
   };
 
@@ -177,6 +181,7 @@ export default function App() {
     setApplicationInfo(null);
     setPaymentSummary(null);
     setSelectedApplication(null);
+    setProfileEditBackScreen('my');
     setCurrentScreen('home');
   };
 
@@ -184,6 +189,20 @@ export default function App() {
     setSelectedPost(activity.post);
     setCommunityPostBackScreen('myCommunity');
     setCurrentScreen('communityPost');
+  };
+
+  const handleLogout = () => {
+    logout();
+    clearChildProfile();
+    setSelectedPost(null);
+    setCommunityPostBackScreen('community');
+    setSelectedProgram(null);
+    setApplicationInfo(null);
+    setPaymentSummary(null);
+    setSelectedApplication(null);
+    setSearchState({ query: '', searched: false });
+    setProfileEditBackScreen('my');
+    setTimeout(() => setCurrentScreen('splash'), 100);
   };
 
   return (
@@ -334,21 +353,11 @@ export default function App() {
               childAge={childProfile?.age}
               childConcerns={childProfile?.concerns}
               onTabChange={(tab) => setCurrentScreen(tab as Screen)}
-              onLogout={() => {
-                logout();
-                clearChildProfile();
-                setSelectedPost(null);
-                setCommunityPostBackScreen('community');
-                setSelectedProgram(null);
-                setApplicationInfo(null);
-                setPaymentSummary(null);
-                setSelectedApplication(null);
-                setSearchState({ query: '', searched: false });
-                setTimeout(() => setCurrentScreen('splash'), 100);
-              }}
+              onLogout={handleLogout}
               onRegisterChild={() => setCurrentScreen('child')}
               onEditProfile={(name) => {
                 setEditUserName(name);
+                setProfileEditBackScreen('my');
                 setCurrentScreen('profileEdit');
               }}
               onNavigate={(screen) => {
@@ -493,10 +502,10 @@ export default function App() {
           {currentScreen === 'profileEdit' && (
             <ProfileEditScreen
               userName={editUserName}
-              onBack={() => setCurrentScreen('my')}
+              onBack={() => setCurrentScreen(profileEditBackScreen)}
               onSave={(name, avatar) => {
                 console.log('저장:', name, avatar);
-                setCurrentScreen('my');
+                setCurrentScreen(profileEditBackScreen);
               }}
             />
           )}
@@ -626,18 +635,12 @@ export default function App() {
           {currentScreen === 'settings' && (
             <SettingsScreen
               onBack={() => setCurrentScreen('my')}
-              onLogout={() => {
-                logout();
-                clearChildProfile();
-                setSelectedPost(null);
-                setCommunityPostBackScreen('community');
-                setSelectedProgram(null);
-                setApplicationInfo(null);
-                setPaymentSummary(null);
-                setSelectedApplication(null);
-                setSearchState({ query: '', searched: false });
-                setTimeout(() => setCurrentScreen('splash'), 100);
+              onProfilePress={() => {
+                setEditUserName('정아름');
+                setProfileEditBackScreen('settings');
+                setCurrentScreen('profileEdit');
               }}
+              onLogout={handleLogout}
             />
           )}
 
