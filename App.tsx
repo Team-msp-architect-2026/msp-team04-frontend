@@ -361,6 +361,9 @@ export default function App() {
                   setCurrentScreen('savedList');
                 }
                 if (screen === 'community') setCurrentScreen('myCommunity');
+                if (screen === 'notifications') {
+                  setCurrentScreen('notificationSettings');
+                }
                 if (screen === 'settings') setCurrentScreen('settings');
                 if (screen === 'help') setCurrentScreen('help');
               }}
@@ -484,9 +487,7 @@ export default function App() {
           )}
 
           {currentScreen === 'notificationSettings' && (
-            <NotificationSettingsScreen
-              onBack={() => setCurrentScreen('notification')}
-            />
+            <NotificationSettingsScreen onBack={() => setCurrentScreen('my')} />
           )}
 
           {currentScreen === 'profileEdit' && (
