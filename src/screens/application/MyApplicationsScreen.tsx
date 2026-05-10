@@ -6,16 +6,17 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../constants';
 
 interface MyApplicationsScreenProps {
   onBack: () => void;
+  onApplicationPress?: (application: Application) => void;
 }
 
-interface Application {
+export interface Application {
   id: number;
   title: string;
   organization: string;
@@ -34,10 +35,10 @@ const STATUS_LABELS = {
 };
 
 const STATUS_COLORS = {
-  pending: { bg: '#FEF9C3', text: '#854D0E' },
-  confirmed: { bg: '#DCFCE7', text: '#166534' },
-  completed: { bg: '#F3F4F6', text: '#6B7280' },
-  cancelled: { bg: '#FEE2E2', text: '#991B1B' },
+  pending: '#D89B00',
+  confirmed: '#2E9B5B',
+  completed: '#8B929E',
+  cancelled: '#E45B5B',
 };
 
 const MOCK_APPLICATIONS: Application[] = [
@@ -49,7 +50,8 @@ const MOCK_APPLICATIONS: Application[] = [
     date: '2024.03.15',
     location: '서울 강남구 역삼동',
     price: '무료',
-    imageUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=400&h=300&fit=crop',
+    imageUrl:
+      'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=400&h=300&fit=crop',
   },
   {
     id: 2,
@@ -59,195 +61,292 @@ const MOCK_APPLICATIONS: Application[] = [
     date: '2024.03.20',
     location: '서울 강남구 삼성동',
     price: '월 5만원',
-    imageUrl: 'https://images.unsplash.com/photo-1587620962725-abab7fe55159?w=400&h=300&fit=crop',
+    imageUrl:
+      'https://images.unsplash.com/photo-1587620962725-abab7fe55159?w=400&h=300&fit=crop',
   },
 ];
 
-export default function MyApplicationsScreen({ onBack }: MyApplicationsScreenProps) {
+export default function MyApplicationsScreen({
+  onBack,
+  onApplicationPress,
+}: MyApplicationsScreenProps) {
   return (
-    <SafeAreaView style={s.container} edges={['top']}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <TouchableOpacity style={s.headerBtn} onPress={onBack}>
-          <Ionicons name="arrow-back" size={22} color="#1A1A1A" />
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>신청 내역</Text>
-        <View style={s.headerBtn} />
-      </View>
+    <View style={s.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
+      <SafeAreaView edges={['top']} style={s.safeArea}>
+        <View style={s.header}>
+          <TouchableOpacity
+            style={s.headerSide}
+            onPress={onBack}
+            activeOpacity={0.72}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="chevron-back" size={25} color="#191919" />
+          </TouchableOpacity>
+
+          <Text style={s.headerTitle}>신청 내역</Text>
+
+          <View style={s.headerSide} />
+        </View>
+      </SafeAreaView>
+
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {MOCK_APPLICATIONS.length > 0 ? (
           MOCK_APPLICATIONS.map((app) => (
-            <TouchableOpacity key={app.id} style={s.card} activeOpacity={0.7}>
-              {/* 썸네일 */}
+            <TouchableOpacity
+              key={app.id}
+              style={s.card}
+              activeOpacity={0.74}
+              onPress={() => onApplicationPress?.(app)}
+            >
               <Image source={{ uri: app.imageUrl }} style={s.thumbnail} />
 
-              {/* 내용 */}
               <View style={s.cardContent}>
-                {/* 상태 배지 */}
-                <View
-                  style={[
-                    s.statusBadge,
-                    { backgroundColor: STATUS_COLORS[app.status].bg },
-                  ]}
-                >
+                <View style={s.statusRow}>
+                  <View
+                    style={[
+                      s.statusDot,
+                      { backgroundColor: STATUS_COLORS[app.status] },
+                    ]}
+                  />
                   <Text
                     style={[
                       s.statusText,
-                      { color: STATUS_COLORS[app.status].text },
+                      { color: STATUS_COLORS[app.status] },
                     ]}
                   >
                     {STATUS_LABELS[app.status]}
                   </Text>
                 </View>
 
-                {/* 제목 */}
                 <Text style={s.cardTitle} numberOfLines={1}>
                   {app.title}
                 </Text>
 
-                {/* 기관 */}
-                <Text style={s.cardOrg}>{app.organization}</Text>
+                <Text style={s.cardOrg} numberOfLines={1}>
+                  {app.organization}
+                </Text>
 
-                {/* 날짜 / 위치 */}
                 <View style={s.cardMeta}>
                   <View style={s.metaItem}>
-                    <Ionicons name="calendar-outline" size={12} color="#888" />
+                    <Ionicons
+                      name="calendar-outline"
+                      size={13}
+                      color="#9AA1AC"
+                    />
                     <Text style={s.metaText}>{app.date}</Text>
                   </View>
+
                   <View style={s.metaItem}>
-                    <Ionicons name="location-outline" size={12} color="#888" />
+                    <Ionicons
+                      name="location-outline"
+                      size={13}
+                      color="#9AA1AC"
+                    />
                     <Text style={s.metaText}>
                       {app.location.split(' ').slice(-1)[0]}
                     </Text>
                   </View>
                 </View>
+
+                <Text style={s.priceText}>{app.price}</Text>
               </View>
 
-              {/* 화살표 */}
               <View style={s.chevron}>
-                <Ionicons name="chevron-forward" size={18} color="#ccc" />
+                <Ionicons name="chevron-forward" size={18} color="#C7CDD6" />
               </View>
             </TouchableOpacity>
           ))
         ) : (
-          /* 빈 상태 */
           <View style={s.empty}>
-            <Ionicons name="calendar-outline" size={48} color="#ccc" />
+            <View style={s.emptyIconBox}>
+              <Ionicons name="calendar-outline" size={30} color="#AEB4BE" />
+            </View>
             <Text style={s.emptyText}>신청 내역이 없습니다</Text>
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F5F6F8',
   },
 
-  // 헤더
+  safeArea: {
+    backgroundColor: '#FFFFFF',
+  },
+
   header: {
+    height: 52,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F5',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 56,
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
-  headerBtn: {
-    width: 40,
-    height: 40,
+
+  headerSide: {
+    width: 64,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: '#17191D',
+    letterSpacing: -0.35,
   },
 
-  // 스크롤
   scroll: {
     flex: 1,
   },
+
   scrollContent: {
-    padding: 16,
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 30,
+    gap: 14,
   },
 
-  // 카드
   card: {
+    minHeight: 120,
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#F0F0F0',
-    alignItems: 'center',
+    borderColor: '#EEF0F3',
+    shadowColor: '#111827',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.035,
+    shadowRadius: 14,
+    elevation: 2,
   },
+
   thumbnail: {
-    width: 96,
-    height: 96,
+    width: 112,
+    height: 120,
+    backgroundColor: '#E5E7EB',
   },
+
   cardContent: {
     flex: 1,
-    padding: 12,
-    gap: 3,
+    minHeight: 120,
+    paddingLeft: 18,
+    paddingRight: 10,
+    paddingVertical: 15,
+    justifyContent: 'center',
   },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginBottom: 2,
+
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 7,
   },
+
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+
   statusText: {
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: -0.1,
   },
+
   cardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1A1A1A',
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '800',
+    color: '#181A1F',
+    letterSpacing: -0.3,
   },
+
   cardOrg: {
+    marginTop: 3,
     fontSize: 12,
-    color: '#888',
+    lineHeight: 16,
+    fontWeight: '600',
+    color: '#8B929E',
+    letterSpacing: -0.1,
   },
+
   cardMeta: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
+    gap: 12,
+    marginTop: 10,
   },
+
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
   },
+
   metaText: {
     fontSize: 11,
-    color: '#888',
+    lineHeight: 14,
+    fontWeight: '600',
+    color: '#8B929E',
+    letterSpacing: -0.1,
   },
 
-  // 화살표
+  priceText: {
+    marginTop: 7,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    color: '#5F6672',
+    letterSpacing: -0.1,
+  },
+
   chevron: {
-    paddingRight: 12,
+    width: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  // 빈 상태
   empty: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
-    gap: 12,
+    paddingVertical: 96,
   },
+
+  emptyIconBox: {
+    width: 58,
+    height: 58,
+    borderRadius: 22,
+    backgroundColor: '#EEF0F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+
   emptyText: {
     fontSize: 14,
-    color: '#aaa',
+    lineHeight: 19,
+    fontWeight: '700',
+    color: '#9AA1AC',
   },
 });
