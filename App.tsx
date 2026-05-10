@@ -98,61 +98,6 @@ type Screen =
   | 'help'
   | 'benefit';
 
-// ─── 임시 아이 정보 등록 화면 (CHD-001 구현 전까지) ──────────────────────
-function ChildPlaceholderScreen({ onNext }: { onNext: () => void }) {
-  return (
-    <View style={placeholder.container}>
-      <Text style={placeholder.emoji}>👶</Text>
-      <Text style={placeholder.title}>아이 정보 등록</Text>
-      <Text style={placeholder.desc}>
-        CHD-001 화면 구현 예정{'\n'}지금은 임시 화면입니다
-      </Text>
-      <TouchableOpacity style={placeholder.button} onPress={onNext}>
-        <Text style={placeholder.buttonText}>홈으로 이동</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-const placeholder = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  emoji: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 8,
-  },
-  desc: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 40,
-  },
-  button: {
-    backgroundColor: '#FEE500',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-  },
-  buttonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#191919',
-  },
-});
-
-// ─── 메인 App ─────────────────────────────────────────────────────────────
 export default function App() {
   useNetworkStatus();
 
@@ -161,6 +106,7 @@ export default function App() {
   const { setRegion } = useRecommendFilterStore();
 
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
+
   const [filterData, setFilterData] = useState<FilterData | null>({
     ageGroup: '',
     region: '강남구',
@@ -231,7 +177,6 @@ export default function App() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <View style={styles.root}>
-          {/* ── 테스트 버튼 4개 항상 표시 ── */}
           <View style={styles.devPanel}>
             <TouchableOpacity
               style={[styles.devBtn, { backgroundColor: '#FFD93D' }]}
@@ -268,7 +213,6 @@ export default function App() {
             </TouchableOpacity>
           </View>
 
-          {/* ── 화면 ── */}
           {currentScreen === 'splash' && (
             <SplashScreen onFinish={handleSplashFinish} />
           )}
@@ -397,7 +341,10 @@ export default function App() {
                   setSelectedApplication(null);
                   setCurrentScreen('myApplications');
                 }
-                if (screen === 'saved') setCurrentScreen('savedList');
+                if (screen === 'saved') {
+                  setSelectedProgram(null);
+                  setCurrentScreen('savedList');
+                }
                 if (screen === 'community') setCurrentScreen('myCommunity');
                 if (screen === 'settings') setCurrentScreen('settings');
                 if (screen === 'help') setCurrentScreen('help');
@@ -593,7 +540,58 @@ export default function App() {
           )}
 
           {currentScreen === 'savedList' && (
-            <SavedListScreen onBack={() => setCurrentScreen('my')} />
+            <SavedListScreen
+              onBack={() => setCurrentScreen('my')}
+              onApplyPress={(program) => {
+                const priceValue =
+                  program.price === '무료'
+                    ? 0
+                    : Number(program.price.replace(/[^0-9]/g, '')) || 0;
+
+                const savedProgramDetail: ProgramDetail = {
+                  id: program.id,
+                  title: program.title,
+                  organization: program.organization,
+                  type: program.location === '온라인' ? 'online' : 'private',
+                  location: program.location,
+                  address: program.location,
+                  distance: program.location === '온라인' ? '-' : '2.1km',
+                  price: program.price,
+                  priceValue,
+                  rating: program.rating,
+                  reviewCount: 12,
+                  ageRange: '3~13세',
+                  schedule: '운영 일정 확인 필요',
+                  score: 92,
+                  isOpen: program.isOpen,
+                  tags: ['저장한 프로그램', '맞춤 추천'],
+                  description: `${program.organization}에서 운영하는 ${program.title}입니다. 자녀의 관심사와 조건에 맞춰 추천된 프로그램입니다.`,
+                  curriculum: [
+                    '프로그램 소개 및 오리엔테이션',
+                    '아이 수준에 맞춘 기초 활동',
+                    '실습 중심의 참여형 수업',
+                    '마무리 활동 및 보호자 피드백',
+                  ],
+                  contact: '02-0000-0000',
+                  capacity: 20,
+                  enrolled: program.isOpen ? 12 : 20,
+                  startDate: '2024.04.01',
+                  endDate: '2024.06.30',
+                  isPartner: true,
+                  aiReason:
+                    '저장한 프로그램 중 자녀 조건과 관심사에 잘 맞는 프로그램입니다.',
+                  reviewChips: ['만족도 높음', '친절한 설명', '아이 흥미 유도'],
+                  matchRate: 92,
+                };
+
+                setSelectedProgram(savedProgramDetail);
+                setProgramDetailBackScreen('savedList');
+                setApplicationInfo(null);
+                setPaymentSummary(null);
+                setSelectedApplication(null);
+                setCurrentScreen('programDetail');
+              }}
+            />
           )}
 
           {currentScreen === 'map' && (
