@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { reviewApi, ReviewItem } from '../../api/review';
 import {
   Linking,
   ScrollView,
@@ -81,29 +82,7 @@ const TYPE_LABELS: Record<ProgramType, string> = {
   government: '정부지원',
 };
 
-const MOCK_REVIEWS = [
-  {
-    name: '김○○ 부모님',
-    age: '만 5세',
-    rating: 5,
-    text: '선생님이 정말 친절하고 아이가 너무 좋아해요. 소규모라 집중적으로 케어해주셔서 만족도가 높아요.',
-    date: '2025.03.15',
-  },
-  {
-    name: '이○○ 부모님',
-    age: '만 6세',
-    rating: 5,
-    text: '커리큘럼이 체계적이고 아이가 수업 후에도 집에서 계속 그림을 그리려고 해요.',
-    date: '2025.03.08',
-  },
-  {
-    name: '박○○ 부모님',
-    age: '만 4세',
-    rating: 4,
-    text: '위치가 가깝고 선생님이 아이 성향을 잘 파악해주세요. 처음 미술 수업으로 괜찮았어요.',
-    date: '2025.02.28',
-  },
-];
+
 
 function StarRating({ rating, size = 12 }: { rating: number; size?: number }) {
   return (
@@ -162,6 +141,8 @@ export default function ProgramDetailScreen({
 }: Props) {
   const [isLiked, setIsLiked] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'review'>('info');
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   const matchRate = program.matchRate ?? program.score;
   const spotsLeft = Math.max(program.capacity - program.enrolled, 0);
@@ -174,6 +155,21 @@ export default function ProgramDetailScreen({
   const reviewChips = program.reviewChips?.length
     ? program.reviewChips
     : ['선생님 친절', '소규모 수업', '피드백 좋음', '아이가 좋아함'];
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      setReviewLoading(true);
+      try {
+        const data = await reviewApi.getReviewList(program.id);
+        setReviews(data);
+      } catch (e) {
+        setReviews([]);
+      } finally {
+        setReviewLoading(false);
+      }
+    };
+    fetchReviews();
+  }, [program.id]);
 
   const aiReasons = useMemo(
     () => [
@@ -574,29 +570,38 @@ export default function ProgramDetailScreen({
               </View>
 
               <View style={styles.reviewList}>
-                {MOCK_REVIEWS.map(review => (
-                  <View key={`${review.name}-${review.date}`} style={styles.reviewCard}>
-                    <View style={styles.reviewHeader}>
-                      <View style={styles.reviewerLeft}>
-                        <View style={styles.reviewerAvatar}>
-                          <Text style={styles.reviewerAvatarText}>부</Text>
+                {reviewLoading ? (
+                  <Text style={{ textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+                    불러오는 중...
+                  </Text>
+                ) : reviews.length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+                    아직 후기가 없습니다.
+                  </Text>
+                ) : (
+                  reviews.map(review => (
+                    <View key={review.reviewId} style={styles.reviewCard}>
+                      <View style={styles.reviewHeader}>
+                        <View style={styles.reviewerLeft}>
+                          <View style={styles.reviewerAvatar}>
+                            <Text style={styles.reviewerAvatarText}>부</Text>
+                          </View>
+                          <View>
+                            <Text style={styles.reviewName}>익명 부모님</Text>
+                            <Text style={styles.reviewAge}>보호자</Text>
+                          </View>
                         </View>
-
-                        <View>
-                          <Text style={styles.reviewName}>{review.name}</Text>
-                          <Text style={styles.reviewAge}>{review.age} 보호자</Text>
+                        <View style={styles.reviewRatingBox}>
+                          <StarRating rating={review.rating} size={11} />
+                          <Text style={styles.reviewDate}>
+                            {review.createdAt.slice(0, 10).replace(/-/g, '.')}
+                          </Text>
                         </View>
                       </View>
-
-                      <View style={styles.reviewRatingBox}>
-                        <StarRating rating={review.rating} size={11} />
-                        <Text style={styles.reviewDate}>{review.date}</Text>
-                      </View>
+                      <Text style={styles.reviewText}>{review.content}</Text>
                     </View>
-
-                    <Text style={styles.reviewText}>{review.text}</Text>
-                  </View>
-                ))}
+                  ))
+                )}
               </View>
             </View>
           )}
