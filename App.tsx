@@ -34,6 +34,7 @@ import CommunityWriteScreen from './src/screens/community/CommunityWriteScreen';
 import CommunityPostScreen from './src/screens/community/CommunityPostScreen';
 import MyCommunityScreen from './src/screens/community/MyCommunityScreen';
 import type { CommunityActivity } from './src/screens/community/MyCommunityScreen';
+import type { PostDetail } from './src/api/community';
 
 import MyPageScreen from './src/screens/mypage/MyPageScreen';
 import ProfileEditScreen from './src/screens/mypage/ProfileEditScreen';
@@ -128,6 +129,7 @@ export default function App() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [communityPostBackScreen, setCommunityPostBackScreen] =
     useState<Screen>('community');
+  const [editPost, setEditPost] = useState<PostDetail | null>(null);
 
   const [selectedProgram, setSelectedProgram] =
     useState<ProgramDetail | null>(null);
@@ -189,6 +191,7 @@ export default function App() {
     logout();
     clearChildProfile();
     setSelectedPost(null);
+    setEditPost(null);
     setCommunityPostBackScreen('community');
     setSelectedProgram(null);
     clearApplicationFlow();
@@ -199,6 +202,7 @@ export default function App() {
 
   const handleGoHome = () => {
     setSelectedPost(null);
+    setEditPost(null);
     setCommunityPostBackScreen('community');
     setSelectedProgram(null);
     clearApplicationFlow();
@@ -216,6 +220,7 @@ export default function App() {
     logout();
     clearChildProfile();
     setSelectedPost(null);
+    setEditPost(null);
     setCommunityPostBackScreen('community');
     setSelectedProgram(null);
     clearApplicationFlow();
@@ -420,7 +425,10 @@ export default function App() {
                 setCommunityPostBackScreen('community');
                 setCurrentScreen('communityPost');
               }}
-              onWriteClick={() => setCurrentScreen('communityWrite')}
+              onWriteClick={() => {
+                setEditPost(null);
+                setCurrentScreen('communityWrite');
+              }}
               onSearchClick={() => setCurrentScreen('search')}
               onNotificationClick={() => setCurrentScreen('notification')}
             />
@@ -428,8 +436,18 @@ export default function App() {
 
           {currentScreen === 'communityWrite' && (
             <CommunityWriteScreen
-              onBack={() => setCurrentScreen('community')}
-              onSubmit={() => setCurrentScreen('community')}
+              onBack={() => {
+                if (editPost) {
+                  setCurrentScreen('communityPost');
+                } else {
+                  setCurrentScreen('community');
+                }
+              }}
+              onSubmit={() => {
+                setEditPost(null);
+                setCurrentScreen('community');
+              }}
+              editPost={editPost ?? undefined}
             />
           )}
 
@@ -439,7 +457,12 @@ export default function App() {
               onBack={() => {
                 setCurrentScreen(communityPostBackScreen);
                 setSelectedPost(null);
+                setEditPost(null);
                 setCommunityPostBackScreen('community');
+              }}
+              onEdit={(postDetail) => {
+                setEditPost(postDetail);
+                setCurrentScreen('communityWrite');
               }}
             />
           )}
