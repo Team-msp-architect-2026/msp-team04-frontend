@@ -46,6 +46,24 @@ export interface ApplicationDetail {
   approvedAt: string | null;
 }
 
+
+export interface BookmarkItem {
+  programId: number;
+  title: string;
+  category: string | null;
+  region: string | null;
+  imageUrl: string | null;
+  price: number;
+  isFree: boolean;
+  ratingAvg: number;
+  reviewCount: number;
+  isRecruiting: boolean;
+}
+
+export interface BookmarkToggleResult {
+  programId: number;
+  bookmarked: boolean;
+}
 export const mypageApi = {
   getApplicationList: async (status?: ApplicationStatus): Promise<ApplicationListItem[]> => {
     const params = status ? { status } : {};
@@ -55,6 +73,16 @@ export const mypageApi = {
 
   getApplicationDetail: async (applicationId: number): Promise<ApplicationDetail> => {
     const res = await apiClient.get(`/api/mypage/applications/${applicationId}`);
+    return res.data.data;
+  },
+
+  getBookmarkList: async (): Promise<BookmarkItem[]> => {
+    const res = await apiClient.get('/api/mypage/bookmarks');
+    return res.data.data;
+  },
+
+  toggleBookmark: async (programId: number): Promise<BookmarkToggleResult> => {
+    const res = await apiClient.post(`/api/mypage/bookmarks/${programId}`);
     return res.data.data;
   },
 };
