@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { reviewApi, ReviewItem } from '../../api/review';
+import { mypageApi } from '../../api/mypage';
 import {
   Linking,
   ScrollView,
@@ -140,6 +141,7 @@ export default function ProgramDetailScreen({
   onGoHome,
 }: Props) {
   const [isLiked, setIsLiked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'review'>('info');
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -155,6 +157,19 @@ export default function ProgramDetailScreen({
   const reviewChips = program.reviewChips?.length
     ? program.reviewChips
     : ['선생님 친절', '소규모 수업', '피드백 좋음', '아이가 좋아함'];
+
+  useEffect(() => {
+    const fetchBookmarkStatus = async () => {
+      try {
+        const list = await mypageApi.getBookmarkList();
+        const found = list.some((b) => b.programId === program.id);
+        setIsLiked(found);
+      } catch (e) {
+        console.error('북마크 상태 확인 실패', e);
+      }
+    };
+    fetchBookmarkStatus();
+  }, [program.id]);
 
   useEffect(() => {
     const fetchReviews = async () => {
@@ -220,7 +235,18 @@ export default function ProgramDetailScreen({
 
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => setIsLiked(prev => !prev)}
+          onPress={async () => {
+            if (bookmarkLoading) return;
+            setBookmarkLoading(true);
+            try {
+              const result = await mypageApi.toggleBookmark(program.id);
+              setIsLiked(result.bookmarked);
+            } catch (e) {
+              console.error('북마크 토글 실패', e);
+            } finally {
+              setBookmarkLoading(false);
+            }
+          }}
           activeOpacity={0.75}
           hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
         >
