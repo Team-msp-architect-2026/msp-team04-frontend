@@ -55,6 +55,8 @@ import {
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
 import BenefitScreen from './src/screens/BenefitScreen';
+import { tokenStorage } from './src/api/tokenStorage';
+
 
 const DEV_ACCESS_TOKEN = process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN ?? '';
 
@@ -161,20 +163,44 @@ export default function App() {
     setSelectedApplication(null);
   };
 
-  const handleSplashFinish = () => {
-    if (!isLoggedIn) {
-      setCurrentScreen('login');
-    } else if (!childProfile) {
-      setCurrentScreen('child');
+  const handleSplashFinish = async () => {
+  const accessToken = await tokenStorage.getAccessToken();
+  const refreshToken = await tokenStorage.getRefreshToken();
+
+  if (accessToken) {
+    setTokens(accessToken, refreshToken ?? '');
+
+    if (!childProfile) {
+      setCurrentScreen('home');
     } else {
       setCurrentScreen('home');
     }
-  };
 
-  const handleLoginSuccess = () => {
-    setTokens(DEV_ACCESS_TOKEN || 'mockAccessToken', '');
+    return;
+  }
+
+  if (!isLoggedIn) {
+    setCurrentScreen('login');
+  } else if (!childProfile) {
     setCurrentScreen('home');
-  };
+  } else {
+    setCurrentScreen('home');
+  }
+};
+
+  const handleLoginSuccess = async () => {
+  const accessToken = await tokenStorage.getAccessToken();
+  const refreshToken = await tokenStorage.getRefreshToken();
+
+  if (!accessToken) {
+    console.warn('카카오 로그인 후 저장된 accessToken이 없습니다.');
+    setCurrentScreen('login');
+    return;
+  }
+
+  setTokens(accessToken, refreshToken ?? '');
+  setCurrentScreen('home');
+};
 
   const handleDevLogin = () => {
     if (!DEV_ACCESS_TOKEN) {
@@ -233,6 +259,7 @@ export default function App() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <View style={styles.root}>
+          {false && (
           <View style={styles.devPanel}>
             <TouchableOpacity
               style={[styles.devBtn, { backgroundColor: '#FFD93D' }]}
@@ -269,6 +296,7 @@ export default function App() {
               <Text style={styles.devBtnText}>초기화 후 스플래시 다시보기</Text>
             </TouchableOpacity>
           </View>
+  )}
 
           {currentScreen === 'splash' && (
             <SplashScreen onFinish={handleSplashFinish} />

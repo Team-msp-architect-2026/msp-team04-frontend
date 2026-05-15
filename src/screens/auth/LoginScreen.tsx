@@ -1,15 +1,45 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, spacing, typography } from '../../constants';
+import * as WebBrowser from 'expo-web-browser';
+import { tokenStorage } from '../../api/tokenStorage';
+
+const KAKAO_CLIENT_ID = 'f4c7c025c81b57486c08a43afd423e5d';
+const REDIRECT_URI = 'https://destiny-why-aloe.ngrok-free.dev/auth/kakao';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
 }
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
-  const handleMockKakaoLogin = () => {
-    console.log('카카오 로그인 성공 가정');
-    onLoginSuccess();
+  const handleKakaoLogin = async () => {
+    try {
+      const authUrl =
+        `https://kauth.kakao.com/oauth/authorize` +
+        `?response_type=code` +
+        `&client_id=${KAKAO_CLIENT_ID}` +
+        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, 'momentapp://auth');
+console.log('카카오 로그인 결과:', result);
+
+      if (result.type === 'success' && result.url) {
+        const url = new URL(result.url);
+        const accessToken = url.searchParams.get('accessToken');
+        const refreshToken = url.searchParams.get('refreshToken');
+
+        if (!accessToken || !refreshToken) {
+          console.error('토큰을 받지 못했어요.', result.url);
+          return;
+        }
+
+        await tokenStorage.setAccessToken(accessToken);
+        await tokenStorage.setRefreshToken(refreshToken);
+        onLoginSuccess();
+      }
+    } catch (e) {
+      console.error('카카오 로그인 실패', e);
+    }
   };
 
   return (
@@ -19,7 +49,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         <Text style={styles.subtitle}>우리 아이 맞춤 교육 · 돌봄 추천 서비스</Text>
       </View>
 
-      <TouchableOpacity style={styles.kakaoButton} onPress={handleMockKakaoLogin}>
+      <TouchableOpacity style={styles.kakaoButton} onPress={handleKakaoLogin}>
         <Text style={styles.kakaoText}>카카오로 시작하기</Text>
       </TouchableOpacity>
 
@@ -39,33 +69,10 @@ const styles = StyleSheet.create({
     paddingTop: 180,
     paddingBottom: 80,
   },
-  logoArea: {
-    alignItems: 'center',
-  },
-  logo: {
-    fontSize: 38,
-    fontWeight: '700',
-    color: colors.primary.default,
-  },
-  subtitle: {
-    marginTop: 10,
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-  },
-  kakaoButton: {
-    backgroundColor: '#FEE500',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  kakaoText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: '700',
-    color: '#191919',
-  },
-  policy: {
-    textAlign: 'center',
-    fontSize: typography.fontSize.xs,
-    color: colors.text.secondary,
-  },
+  logoArea: { alignItems: 'center' },
+  logo: { fontSize: 38, fontWeight: '700', color: colors.primary.default },
+  subtitle: { marginTop: 10, fontSize: typography.fontSize.sm, color: colors.text.secondary },
+  kakaoButton: { backgroundColor: '#FEE500', paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  kakaoText: { fontSize: typography.fontSize.base, fontWeight: '700', color: '#191919' },
+  policy: { textAlign: 'center', fontSize: typography.fontSize.xs, color: colors.text.secondary },
 });
