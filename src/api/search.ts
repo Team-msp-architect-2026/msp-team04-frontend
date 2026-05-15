@@ -48,6 +48,15 @@ export interface RecentSearchItem {
   searchedAt: string;
 }
 
+export type AiSearchSuggestionSource = 'RECENT' | 'PERSONAL' | 'GLOBAL';
+
+export interface AiSearchSuggestionItem {
+  id: number;
+  keyword: string;
+  source: AiSearchSuggestionSource;
+  createdAt: string;
+}
+
 export const searchApi = {
   async searchPrograms(keyword: string, page = 0, size = 10) {
     const response = await client.get<ApiResponse<PageResponse<SearchProgramItem>>>(
@@ -67,6 +76,14 @@ export const searchApi = {
   async getRecentSearches() {
     const response = await client.get<ApiResponse<RecentSearchItem[]>>(
       '/api/search/recent',
+    );
+
+    return response.data.data;
+  },
+
+  async getSearchSuggestions() {
+    const response = await client.get<ApiResponse<AiSearchSuggestionItem[]>>(
+      '/api/search/suggestions',
     );
 
     return response.data.data;

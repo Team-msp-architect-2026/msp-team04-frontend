@@ -33,7 +33,7 @@ interface SearchResult extends ProgramDetail {
   imageUrl?: string | null;
 }
 
-const AI_SUGGESTIONS = [
+const FALLBACK_AI_SUGGESTIONS = [
   '선생님 피드백 좋은 소규모 미술 수업',
   '집 근처 무료 공공 프로그램',
   '주말에 가능한 창의력 수업',
@@ -200,6 +200,7 @@ export default function SearchScreen({
   const [query, setQuery] = useState(initialQuery);
   const [searched, setSearched] = useState(initialSearched);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [resultTotal, setResultTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -207,6 +208,8 @@ export default function SearchScreen({
   const [errorMessage, setErrorMessage] = useState('');
 
   const trimmedQuery = query.trim();
+  const aiSuggestionKeywords =
+    aiSuggestions.length > 0 ? aiSuggestions : FALLBACK_AI_SUGGESTIONS;
 
   const resultCountLabel = useMemo(() => {
     if (!trimmedQuery) {
@@ -225,6 +228,22 @@ export default function SearchScreen({
       console.warn('최근 검색어 조회 실패:', error);
     } finally {
       setRecentLoading(false);
+    }
+  };
+
+  const loadSearchSuggestions = async () => {
+    try {
+      const suggestionItems = await searchApi.getSearchSuggestions();
+      const keywords = suggestionItems
+        .map(item => item.keyword.trim())
+        .filter((keyword, index, array) => {
+          return keyword.length > 0 && array.indexOf(keyword) === index;
+        });
+
+      setAiSuggestions(keywords);
+    } catch (error) {
+      console.warn('AI 추천 검색어 조회 실패:', error);
+      setAiSuggestions([]);
     }
   };
 
@@ -262,6 +281,7 @@ export default function SearchScreen({
 
   useEffect(() => {
     loadRecentSearches();
+    loadSearchSuggestions();
 
     if (initialSearched && initialQuery.trim()) {
       runSearch(initialQuery);
@@ -450,7 +470,7 @@ export default function SearchScreen({
               </View>
 
               <View style={styles.suggestionList}>
-                {AI_SUGGESTIONS.map(item => (
+                {aiSuggestionKeywords.map(item => (
                   <TouchableOpacity
                     key={item}
                     style={styles.suggestionItem}
