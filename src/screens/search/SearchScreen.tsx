@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { ProgramDetail } from '../program/ProgramDetailScreen';
+import { searchApi, type SearchProgramItem } from '../../api/search';
 
 interface SearchScreenState {
   query: string;
@@ -28,15 +30,8 @@ interface SearchScreenProps {
 interface SearchResult extends ProgramDetail {
   category: string;
   match: number;
-  imageUrl: string;
+  imageUrl?: string | null;
 }
-
-const INITIAL_RECENT_SEARCHES = [
-  '강남 미술 수업',
-  '소규모 음악 교실',
-  '만 3세 영어',
-  '아이돌봄 서비스',
-];
 
 const AI_SUGGESTIONS = [
   '선생님 피드백 좋은 소규모 미술 수업',
@@ -54,131 +49,146 @@ const QUICK_CONDITIONS = [
   '공공기관',
 ];
 
-const SEARCH_RESULTS: SearchResult[] = [
-  {
-    id: 1,
-    title: '창의력 쑥쑥 미술 놀이',
-    category: '미술',
-    type: 'private',
-    organization: '아트키즈 스튜디오',
-    location: '강남구 역삼동',
-    address: '서울 강남구 역삼동 123-4',
-    distance: '1.2km',
-    price: '월 9만원',
-    priceValue: 90000,
-    rating: 4.9,
-    reviewCount: 128,
-    ageRange: '만 3~6세',
-    schedule: '토요일 10:00',
-    score: 97,
-    match: 97,
-    matchRate: 97,
-    isOpen: true,
-    tags: ['미술', '소규모', '창의력', '선생님 피드백'],
+const CATEGORY_LABELS: Record<string, string> = {
+  EDUCATION: '교육',
+  CARE: '돌봄',
+  EXPERIENCE: '체험',
+  SPORTS: '체육',
+  ART: '미술',
+  LANGUAGE: '언어',
+  ETC: '기타',
+};
+
+const CLASS_TYPE_LABELS: Record<string, string> = {
+  SMALL: '소규모',
+  ONE_ON_ONE: '1:1',
+  GROUP: '그룹',
+  ONLINE: '온라인',
+};
+
+const formatPrice = (price: number, isFree: boolean) => {
+  if (isFree || price === 0) {
+    return '무료';
+  }
+
+  return `월 ${price.toLocaleString()}원`;
+};
+
+const formatAgeRange = (minAge: number | null, maxAge: number | null) => {
+  if (minAge !== null && maxAge !== null) {
+    return `만 ${minAge}~${maxAge}세`;
+  }
+
+  if (minAge !== null) {
+    return `만 ${minAge}세 이상`;
+  }
+
+  if (maxAge !== null) {
+    return `만 ${maxAge}세 이하`;
+  }
+
+  return '대상 연령 확인 필요';
+};
+
+const formatSchedule = (classType: string | null, deadlineDate: string | null) => {
+  const classTypeLabel = classType
+    ? CLASS_TYPE_LABELS[classType] ?? classType
+    : '운영 방식 확인 필요';
+
+  if (!deadlineDate) {
+    return classTypeLabel;
+  }
+
+  return `${classTypeLabel} · ${deadlineDate.replace(/-/g, '.')} 마감`;
+};
+
+const calculateMatch = (item: SearchProgramItem, keyword: string) => {
+  const lowerKeyword = keyword.trim().toLowerCase();
+
+  const contains = (value?: string | null) =>
+    !!value && value.toLowerCase().includes(lowerKeyword);
+
+  if (contains(item.name)) {
+    return 97;
+  }
+
+  if (item.tags.some(tag => contains(tag))) {
+    return 94;
+  }
+
+  if (contains(item.institutionName)) {
+    return 91;
+  }
+
+  if (contains(item.description)) {
+    return 88;
+  }
+
+  if (contains(item.region) || contains(item.detailAddress)) {
+    return 86;
+  }
+
+  return item.isRecruiting ? 84 : 76;
+};
+
+const mapSearchItemToProgramDetail = (
+  item: SearchProgramItem,
+  keyword: string,
+): SearchResult => {
+  const match = calculateMatch(item, keyword);
+  const capacity = item.maxCapacity ?? 0;
+  const remainCapacity = item.remainCapacity ?? 0;
+  const enrolled =
+    capacity > 0 && remainCapacity >= 0
+      ? Math.max(capacity - remainCapacity, 0)
+      : 0;
+
+  const categoryLabel = CATEGORY_LABELS[item.category] ?? item.category;
+  const tags = item.tags.length > 0 ? item.tags : [categoryLabel];
+
+  return {
+    id: item.id,
+    title: item.name,
+    category: categoryLabel,
+    type: (item.isFree ? 'government' : 'private') as ProgramDetail['type'],
+    organization: item.institutionName ?? '기관 정보 없음',
+    location: item.region ?? '지역 정보 없음',
+    address: item.detailAddress ?? item.region ?? '주소 정보 없음',
+    distance: '-',
+    price: formatPrice(item.price, item.isFree),
+    priceValue: item.price,
+    rating: item.ratingAvg ?? 0,
+    reviewCount: item.reviewCount ?? 0,
+    ageRange: formatAgeRange(item.targetAgeMin, item.targetAgeMax),
+    schedule: formatSchedule(item.classType, item.deadlineDate),
+    score: match,
+    match,
+    matchRate: match,
+    isOpen: item.isRecruiting && remainCapacity > 0,
+    tags,
     description:
-      '아이의 창의력과 소근육 발달을 함께 키울 수 있는 소규모 미술 프로그램입니다. 선생님이 아이별 성향을 관찰하며 피드백을 제공합니다.',
+      item.description ??
+      `${item.institutionName ?? '운영 기관'}에서 운영하는 ${item.name} 프로그램입니다.`,
     curriculum: [
-      '색채 감각 놀이',
-      '클레이 만들기',
-      '수채화 기초',
-      '작품 발표와 피드백',
+      '프로그램 소개 및 오리엔테이션',
+      '아이 수준에 맞춘 참여형 활동',
+      '주제별 실습 및 활동 진행',
+      '마무리 활동 및 보호자 피드백',
     ],
-    contact: '02-1234-5678',
-    website: 'https://example.com/artkids',
-    capacity: 8,
-    enrolled: 5,
-    startDate: '2026.05.01',
-    endDate: '2026.06.30',
+    contact: '문의처 확인 필요',
+    website: undefined,
+    capacity,
+    enrolled,
+    startDate: '운영 시작일 확인 필요',
+    endDate: item.deadlineDate
+      ? item.deadlineDate.replace(/-/g, '.')
+      : '운영 종료일 확인 필요',
     isPartner: true,
-    aiReason:
-      '소규모 수업과 선생님 피드백을 원하는 조건에 잘 맞는 미술 프로그램입니다.',
-    reviewChips: ['선생님 친절', '소규모 수업', '피드백 좋음'],
-    imageUrl:
-      'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400&h=300&fit=crop',
-  },
-  {
-    id: 2,
-    title: '소근육 발달 클레이 아트',
-    category: '미술',
-    type: 'private',
-    organization: '키즈아트랩',
-    location: '강남구 청담동',
-    address: '서울 강남구 청담동 55-1',
-    distance: '2.1km',
-    price: '월 8만원',
-    priceValue: 80000,
-    rating: 4.7,
-    reviewCount: 96,
-    ageRange: '만 3~5세',
-    schedule: '일요일 11:00',
-    score: 89,
-    match: 89,
-    matchRate: 89,
-    isOpen: true,
-    tags: ['미술', '클레이', '소근육', '오감발달'],
-    description:
-      '클레이와 다양한 재료를 활용해 아이의 소근육과 표현력을 키우는 미술 활동 프로그램입니다.',
-    curriculum: [
-      '클레이 촉감 놀이',
-      '동물 만들기',
-      '색 조합 활동',
-      '작품 정리와 발표',
-    ],
-    contact: '02-2345-6789',
-    website: 'https://example.com/kidsartlab',
-    capacity: 10,
-    enrolled: 6,
-    startDate: '2026.05.03',
-    endDate: '2026.07.05',
-    isPartner: false,
-    aiReason:
-      '만 3세 아이의 소근육 발달과 미술 흥미 형성에 적합한 프로그램입니다.',
-    reviewChips: ['오감발달', '재료 다양', '아이가 좋아함'],
-    imageUrl:
-      'https://images.unsplash.com/photo-1596495577886-d920f1fb7238?w=400&h=300&fit=crop',
-  },
-  {
-    id: 3,
-    title: '수채화 기초 클래스',
-    category: '미술',
-    type: 'private',
-    organization: '작은화실',
-    location: '강남구 논현동',
-    address: '서울 강남구 논현동 88-7',
-    distance: '2.8km',
-    price: '월 10만원',
-    priceValue: 100000,
-    rating: 4.6,
-    reviewCount: 74,
-    ageRange: '만 5~8세',
-    schedule: '수요일 16:00',
-    score: 84,
-    match: 84,
-    matchRate: 84,
-    isOpen: true,
-    tags: ['미술', '수채화', '기초', '창의력'],
-    description:
-      '수채화의 기본 표현법을 배우며 아이가 자유롭게 색과 형태를 탐색할 수 있는 기초 클래스입니다.',
-    curriculum: [
-      '물감 사용법',
-      '색 번짐 표현',
-      '사물 그리기',
-      '나만의 작품 완성',
-    ],
-    contact: '02-3456-7890',
-    website: 'https://example.com/smallatelier',
-    capacity: 8,
-    enrolled: 4,
-    startDate: '2026.05.08',
-    endDate: '2026.07.10',
-    isPartner: false,
-    aiReason:
-      '창의력 표현과 미술 기초를 함께 경험할 수 있어 미술 관심이 있는 아이에게 적합합니다.',
-    reviewChips: ['차분한 분위기', '기초 탄탄', '소수정예'],
-    imageUrl:
-      'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=300&fit=crop',
-  },
-];
+    aiReason: `"${keyword}" 검색 조건과 프로그램 정보가 잘 맞는 추천 프로그램입니다.`,
+    reviewChips: tags.slice(0, 3),
+    imageUrl: item.imageUrl,
+  };
+};
 
 export default function SearchScreen({
   onBack,
@@ -189,7 +199,12 @@ export default function SearchScreen({
 }: SearchScreenProps) {
   const [query, setQuery] = useState(initialQuery);
   const [searched, setSearched] = useState(initialSearched);
-  const [recentSearches, setRecentSearches] = useState(INITIAL_RECENT_SEARCHES);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [resultTotal, setResultTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const trimmedQuery = query.trim();
 
@@ -198,32 +213,83 @@ export default function SearchScreen({
       return '';
     }
 
-    return `"${trimmedQuery}" 검색 결과 ${SEARCH_RESULTS.length}개`;
-  }, [trimmedQuery]);
+    return `"${trimmedQuery}" 검색 결과 ${resultTotal}개`;
+  }, [resultTotal, trimmedQuery]);
 
-  const handleSearch = (value?: string) => {
-    const nextQuery = (value ?? query).trim();
+  const loadRecentSearches = async () => {
+    try {
+      setRecentLoading(true);
+      const recentItems = await searchApi.getRecentSearches();
+      setRecentSearches(recentItems.map(item => item.keyword));
+    } catch (error) {
+      console.warn('최근 검색어 조회 실패:', error);
+    } finally {
+      setRecentLoading(false);
+    }
+  };
 
-    if (!nextQuery) {
+  const runSearch = async (nextQuery: string) => {
+    const normalizedQuery = nextQuery.trim();
+
+    if (!normalizedQuery) {
       return;
     }
 
-    setQuery(nextQuery);
-    setSearched(true);
-    onSearchStateChange?.({ query: nextQuery, searched: true });
-    setRecentSearches(prev =>
-      [nextQuery, ...prev.filter(item => item !== nextQuery)].slice(0, 6),
-    );
+    try {
+      setLoading(true);
+      setErrorMessage('');
+      setQuery(normalizedQuery);
+      setSearched(true);
+      onSearchStateChange?.({ query: normalizedQuery, searched: true });
+
+      const page = await searchApi.searchPrograms(normalizedQuery, 0, 10);
+      const mappedResults = page.content.map(item =>
+        mapSearchItemToProgramDetail(item, normalizedQuery),
+      );
+
+      setResults(mappedResults);
+      setResultTotal(page.totalElements);
+      await loadRecentSearches();
+    } catch (error) {
+      console.warn('검색 실패:', error);
+      setResults([]);
+      setResultTotal(0);
+      setErrorMessage('검색 결과를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRecentSearches();
+
+    if (initialSearched && initialQuery.trim()) {
+      runSearch(initialQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSearch = (value?: string) => {
+    runSearch(value ?? query);
   };
 
   const handleClear = () => {
     setQuery('');
     setSearched(false);
+    setResults([]);
+    setResultTotal(0);
+    setErrorMessage('');
     onSearchStateChange?.({ query: '', searched: false });
   };
 
-  const handleClearRecent = () => {
-    setRecentSearches([]);
+  const handleClearRecent = async () => {
+    try {
+      await searchApi.deleteRecentSearches();
+      setRecentSearches([]);
+    } catch (error) {
+      console.warn('최근 검색어 삭제 실패:', error);
+      setErrorMessage('최근 검색어를 삭제하지 못했어요.');
+    }
   };
 
   const handleHeaderBack = () => {
@@ -277,6 +343,9 @@ export default function SearchScreen({
 
               if (!value.trim()) {
                 setSearched(false);
+                setResults([]);
+                setResultTotal(0);
+                setErrorMessage('');
                 onSearchStateChange?.({ query: '', searched: false });
                 return;
               }
@@ -338,7 +407,12 @@ export default function SearchScreen({
                 )}
               </View>
 
-              {recentSearches.length > 0 ? (
+              {recentLoading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color="#94A3B8" />
+                  <Text style={styles.loadingText}>최근 검색어 불러오는 중</Text>
+                </View>
+              ) : recentSearches.length > 0 ? (
                 <View style={styles.chipWrap}>
                   {recentSearches.map(item => (
                     <TouchableOpacity
@@ -356,6 +430,10 @@ export default function SearchScreen({
                 <Text style={styles.emptySmallText}>최근 검색어가 없어요</Text>
               )}
             </View>
+
+            {errorMessage.length > 0 && (
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            )}
 
             <View style={styles.section}>
               <View style={styles.aiHeader}>
@@ -413,23 +491,38 @@ export default function SearchScreen({
             <View style={styles.resultHeader}>
               <Text style={styles.resultCount}>{resultCountLabel}</Text>
               <Text style={styles.resultGuide}>
-                AI 매칭률 높은 순으로 보여드려요
+                검색 조건과 관련도가 높은 순으로 보여드려요
               </Text>
             </View>
 
-            {SEARCH_RESULTS.length > 0 ? (
+            {errorMessage.length > 0 && (
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            )}
+
+            {loading ? (
+              <View style={styles.loadingResult}>
+                <ActivityIndicator size="small" color="#1479B8" />
+                <Text style={styles.loadingText}>검색 결과 불러오는 중</Text>
+              </View>
+            ) : results.length > 0 ? (
               <View style={styles.resultList}>
-                {SEARCH_RESULTS.map(program => (
+                {results.map(program => (
                   <TouchableOpacity
                     key={program.id}
                     style={styles.resultCard}
                     onPress={() => handleSelectProgram(program)}
                     activeOpacity={0.84}
                   >
-                    <Image
-                      source={{ uri: program.imageUrl }}
-                      style={styles.resultImage}
-                    />
+                    {program.imageUrl ? (
+                      <Image
+                        source={{ uri: program.imageUrl }}
+                        style={styles.resultImage}
+                      />
+                    ) : (
+                      <View style={styles.resultImagePlaceholder}>
+                        <Ionicons name="image-outline" size={24} color="#CBD5E1" />
+                      </View>
+                    )}
 
                     <View style={styles.resultInfo}>
                       <View style={styles.resultTitleRow}>
@@ -455,7 +548,9 @@ export default function SearchScreen({
 
                         <View style={styles.ratingRow}>
                           <Text style={styles.ratingStar}>★</Text>
-                          <Text style={styles.ratingText}>{program.rating}</Text>
+                          <Text style={styles.ratingText}>
+                            {program.rating.toFixed(1)}
+                          </Text>
                         </View>
                       </View>
                     </View>
@@ -790,6 +885,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
 
+  resultImagePlaceholder: {
+    width: 72,
+    height: 72,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   resultInfo: {
     flex: 1,
     minHeight: 72,
@@ -905,5 +1009,32 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     textAlign: 'center',
     lineHeight: 20,
+  },
+
+  loadingRow: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  loadingResult: {
+    marginTop: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  loadingText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+
+  errorText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '700',
+    color: '#EF4444',
   },
 });
