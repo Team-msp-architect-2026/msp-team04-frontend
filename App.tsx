@@ -23,6 +23,11 @@ import type {
 } from './src/screens/application/ApplicationFormScreen';
 import PaymentScreen from './src/screens/application/PaymentScreen';
 import type { PaymentSummary } from './src/screens/application/PaymentScreen';
+import {
+  buildPreferenceRequest,
+  recommendationApi,
+  type RecommendationItem,
+} from './src/api/recommendation';
 import ApplicationCompleteScreen from './src/screens/application/ApplicationCompleteScreen';
 import MyApplicationsScreen from './src/screens/application/MyApplicationsScreen';
 import type { Application } from './src/screens/application/MyApplicationsScreen';
@@ -127,6 +132,15 @@ export default function App() {
     concerns: [],
     subjectDetails: [],
   });
+  const [recommendationPreferenceId, setRecommendationPreferenceId] =
+    useState<number | null>(null);
+  const [recommendationItems, setRecommendationItems] = useState<
+    RecommendationItem[]
+  >([]);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [recommendationErrorMessage, setRecommendationErrorMessage] =
+    useState('');
+
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [communityPostBackScreen, setCommunityPostBackScreen] =
@@ -352,9 +366,48 @@ export default function App() {
           {currentScreen === 'recommend' && (
             <RecommendScreen
               onTabChange={(tab) => setCurrentScreen(tab as Screen)}
-              onComplete={(data) => {
+              onComplete={async (data) => {
                 setFilterData(data);
-                setCurrentScreen('recommendation');
+                setRecommendationPreferenceId(null);
+                setRecommendationItems([]);
+                setRecommendationErrorMessage('');
+
+                if (!childProfile?.id) {
+                  setRecommendationErrorMessage(
+                    '추천 결과를 조회하려면 자녀 정보 저장이 필요합니다.',
+                  );
+                  setCurrentScreen('recommendation');
+                  return;
+                }
+
+                try {
+                  setRecommendationLoading(true);
+
+                  const preferenceRequest = buildPreferenceRequest(
+                    childProfile.id,
+                    data,
+                  );
+                  const preferenceId =
+                    await recommendationApi.savePreference(preferenceRequest);
+                  const recommendationPage =
+                    await recommendationApi.getRecommendations(
+                      childProfile.id,
+                      preferenceId,
+                      0,
+                      20,
+                    );
+
+                  setRecommendationPreferenceId(preferenceId);
+                  setRecommendationItems(recommendationPage.content);
+                } catch (error) {
+                  console.error('추천 결과 조회 실패', error);
+                  setRecommendationErrorMessage(
+                    '추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+                  );
+                } finally {
+                  setRecommendationLoading(false);
+                  setCurrentScreen('recommendation');
+                }
               }}
               hasChildInfo={!!childProfile}
               childInfo={
@@ -386,6 +439,10 @@ export default function App() {
                 region: filterData?.region,
                 budget: filterData?.budget,
               }}
+              preferenceId={recommendationPreferenceId}
+              recommendations={recommendationItems}
+              loading={recommendationLoading}
+              errorMessage={recommendationErrorMessage}
               onBack={() => setCurrentScreen('recommend')}
               onGoHome={() => setCurrentScreen('home')}
               onProgramClick={(program) => {
@@ -498,6 +555,11 @@ export default function App() {
           {currentScreen === 'programDetail' && selectedProgram && (
             <ProgramDetailScreen
               program={selectedProgram}
+              preferenceId={
+                programDetailBackScreen === 'recommendation'
+                  ? recommendationPreferenceId
+                  : null
+              }
               onBack={() => {
                 setCurrentScreen(programDetailBackScreen);
                 setSelectedProgram(null);
@@ -547,11 +609,14 @@ export default function App() {
           {currentScreen === 'applicationComplete' &&
             selectedProgram &&
             applicationInfo &&
-            paymentSummary && (
+            paymentSummary &&
+            createdApplication && (
               <ApplicationCompleteScreen
                 program={selectedProgram}
                 applicationInfo={applicationInfo}
                 paymentSummary={paymentSummary}
+                createdApplication={createdApplication}
+                applicationId={createdApplication.applicationId}
                 onGoApplications={() => {
                   setSelectedProgram(null);
                   clearApplicationFlow();

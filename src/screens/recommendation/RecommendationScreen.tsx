@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../constants';
 import type { ProgramDetail } from '../program/ProgramDetailScreen';
+import {
+  recommendationApi,
+  type RecommendationItem,
+  type Top3CompareItem,
+} from '../../api/recommendation';
 
 export interface ChildFormData {
   childName: string;
@@ -39,6 +44,8 @@ interface Program {
   description: string;
   aiReason?: string;
   reviewChips?: string[];
+  priceValue?: number;
+  isTop3?: boolean;
 }
 
 const mockPrograms: Program[] = [
@@ -147,7 +154,45 @@ const mockPrograms: Program[] = [
   },
 ];
 
-const top3 = mockPrograms.slice(0, 3);
+const FALLBACK_IMAGE_URL =
+  'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=400&h=300&fit=crop';
+
+function formatRecommendationPrice(price: number, isFree: boolean) {
+  if (isFree || price === 0) {
+    return '무료';
+  }
+
+  return `${price.toLocaleString('ko-KR')}원`;
+}
+
+function toRecommendationProgram(item: RecommendationItem): Program {
+  const totalScore = Number(item.scoreBreakdown?.totalScore ?? 0);
+  const matchRate = Math.max(0, Math.min(100, Math.round(totalScore)));
+
+  return {
+    id: item.programId,
+    title: item.title,
+    organization: '운영 기관 확인 필요',
+    type: item.isFree ? 'government' : 'private',
+    category: item.category,
+    location: item.region ?? '지역 정보 없음',
+    distance: '-',
+    price: formatRecommendationPrice(item.price, item.isFree),
+    priceValue: item.price,
+    rating: 0,
+    reviewCount: 0,
+    ageRange: '대상 연령 확인 필요',
+    schedule: item.classType ?? '운영 방식 확인 필요',
+    imageUrl: item.imageUrl ?? FALLBACK_IMAGE_URL,
+    matchRate,
+    isOpen: item.isRecruiting,
+    tags: [item.category, item.isTop3 ? 'TOP3' : '맞춤추천'].filter(Boolean),
+    description: item.recommendReason,
+    aiReason: item.recommendReason,
+    reviewChips: [],
+    isTop3: item.isTop3,
+  };
+}
 
 // Program → ProgramDetail 변환 함수
 function toProgramDetail(p: Program): ProgramDetail {
@@ -160,7 +205,7 @@ function toProgramDetail(p: Program): ProgramDetail {
     address: p.location,
     distance: p.distance,
     price: p.price,
-    priceValue: p.price === '무료' ? 0 : 1,
+    priceValue: p.priceValue ?? (p.price === '무료' ? 0 : 1),
     rating: p.rating,
     reviewCount: p.reviewCount,
     ageRange: p.ageRange,
@@ -184,19 +229,77 @@ function toProgramDetail(p: Program): ProgramDetail {
 
 interface RecommendationScreenProps {
   childData: ChildFormData;
+  preferenceId?: number | null;
+  recommendations?: RecommendationItem[];
+  loading?: boolean;
+  errorMessage?: string;
   onBack: () => void;
   onGoHome: () => void;
-  onProgramClick: (program: ProgramDetail) => void; // ← 추가
+  onProgramClick: (program: ProgramDetail) => void;
 }
 
 export default function RecommendationScreen({
   childData,
+  preferenceId,
+  recommendations = [],
+  loading = false,
+  errorMessage = '',
   onBack,
   onGoHome,
-  onProgramClick, // ← 추가
+  onProgramClick,
 }: RecommendationScreenProps) {
   const [activeTab, setActiveTab] = useState<'top3' | 'all'>('top3');
   const [likedPrograms, setLikedPrograms] = useState<number[]>([]);
+  const [top3CompareSummary, setTop3CompareSummary] = useState('');
+  const [top3CompareItems, setTop3CompareItems] = useState<
+    Top3CompareItem[]
+  >([]);
+
+  const programs =
+    recommendations.length > 0
+      ? recommendations.map(toRecommendationProgram)
+      : mockPrograms;
+  const top3 = programs.filter(program => program.isTop3).slice(0, 3);
+  const displayTop3 = top3.length > 0 ? top3 : programs.slice(0, 3);
+
+  useEffect(() => {
+    if (!preferenceId || top3.length < 3) {
+      setTop3CompareSummary('');
+      setTop3CompareItems([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchTop3Compare = async () => {
+      try {
+        const data = await recommendationApi.compareTop3(preferenceId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setTop3CompareSummary(data.commonSummary ?? '');
+        setTop3CompareItems(data.items ?? []);
+      } catch (error) {
+        console.error('AI TOP3 비교 설명 조회 실패', error);
+
+        if (!cancelled) {
+          setTop3CompareSummary('');
+          setTop3CompareItems([]);
+        }
+      }
+    };
+
+    fetchTop3Compare();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [preferenceId, top3.length]);
+
+  const getCompareItem = (programId: number) =>
+    top3CompareItems.find(item => item.programId === programId);
 
   const toggleLike = (id: number) => {
     setLikedPrograms(prev =>
@@ -224,7 +327,7 @@ export default function RecommendationScreen({
       <View style={s.aiBanner}>
         <View style={s.aiBannerLeft}>
           <Text style={s.aiStar}>✦</Text>
-          <Text style={s.aiText}>{childData.childName}에게 딱 맞는 프로그램 {mockPrograms.length}개를 찾았어요!</Text>
+          <Text style={s.aiText}>{childData.childName}에게 딱 맞는 프로그램 {programs.length}개를 찾았어요!</Text>
         </View>
         <View style={s.aiBadge}>
           <Text style={s.aiBadgeText}>✦ 95%</Text>
@@ -254,10 +357,21 @@ export default function RecommendationScreen({
         >
           <Text style={[s.tabBtnText, activeTab === 'all' && s.tabBtnTextActive]}>전체 결과</Text>
         </TouchableOpacity>
-        <Text style={s.totalCount}>총 {mockPrograms.length}개</Text>
+        <Text style={s.totalCount}>총 {programs.length}개</Text>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll}>
+        {loading && (
+          <View style={s.compareBox}>
+            <Text style={s.compareTitle}>추천 결과를 불러오는 중이에요.</Text>
+          </View>
+        )}
+
+        {!!errorMessage && (
+          <View style={s.compareBox}>
+            <Text style={s.compareTitle}>{errorMessage}</Text>
+          </View>
+        )}
 
         {/* TOP3 탭 */}
         {activeTab === 'top3' && (
@@ -268,19 +382,54 @@ export default function RecommendationScreen({
                 <Text style={s.aiStar}>✦</Text>
                 <Text style={s.compareTitle}>AI 비교 추천 TOP 3</Text>
               </View>
+
+              {top3.length < 3 ? (
+                <Text style={s.compareSummary}>
+                  추천 결과가 3개 이상일 때 AI TOP3 비교 설명을 제공해요.
+                </Text>
+              ) : top3CompareSummary ? (
+                <Text style={s.compareSummary}>{top3CompareSummary}</Text>
+              ) : null}
+
               <View style={s.compareGrid}>
-                {top3.map((p, idx) => (
-                  <View key={p.id} style={s.compareItem}>
-                    <Text style={s.compareRank}>#{idx + 1}</Text>
-                    <Text style={s.compareTitle2}>{p.title.slice(0, 6)}...</Text>
-                    <Text style={s.compareRate}>{p.matchRate}%</Text>
-                  </View>
-                ))}
+                {displayTop3.map((p, idx) => {
+                  const compareItem = getCompareItem(p.id);
+
+                  return (
+                    <View key={p.id} style={s.compareItem}>
+                      <Text style={s.compareRank}>#{idx + 1}</Text>
+                      <Text style={s.compareTitle2}>{p.title.slice(0, 6)}...</Text>
+                      <Text style={s.compareRate}>{p.matchRate}%</Text>
+                      {compareItem?.highlightTag ? (
+                        <Text style={s.compareTag}>{compareItem.highlightTag}</Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
               </View>
+
+              {top3CompareItems.length > 0 && (
+                <View style={s.compareReasonList}>
+                  {displayTop3.map(program => {
+                    const compareItem = getCompareItem(program.id);
+
+                    if (!compareItem?.reason) {
+                      return null;
+                    }
+
+                    return (
+                      <View key={`reason-${program.id}`} style={s.compareReasonItem}>
+                        <Text style={s.compareReasonTitle}>{program.title}</Text>
+                        <Text style={s.compareReasonText}>{compareItem.reason}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
 
             {/* TOP3 카드 */}
-            {top3.map((program, idx) => (
+            {displayTop3.map((program, idx) => (
               <View key={program.id} style={s.card}>
                 <View style={s.cardImageWrap}>
                   <Image
@@ -355,7 +504,7 @@ export default function RecommendationScreen({
         {/* 전체 탭 - ← TouchableOpacity에 onProgramClick 연결 */}
         {activeTab === 'all' && (
           <View style={{ gap: 12 }}>
-            {mockPrograms.map(program => (
+            {programs.map(program => (
               <TouchableOpacity
                 key={program.id}
                 style={s.listCard}
@@ -475,4 +624,41 @@ const s = StyleSheet.create({
   listCardTitle: { fontSize: 13, fontWeight: '700', color: '#1A202C' },
   listCardLocation: { fontSize: 11, color: '#718096' },
   listCardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  compareSummary: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  compareTag: {
+    marginTop: 6,
+    fontSize: 10,
+    fontWeight: '900',
+    color: colors.primary.default,
+  },
+  compareReasonList: {
+    marginTop: 14,
+    gap: 10,
+  },
+  compareReasonItem: {
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E8EDF3',
+  },
+  compareReasonTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#111827',
+    marginBottom: 5,
+  },
+  compareReasonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    lineHeight: 18,
+  },
+
 });

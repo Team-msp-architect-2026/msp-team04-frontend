@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { reviewApi, ReviewItem } from '../../api/review';
+import { reviewApi, type ReviewItem } from '../../api/review';
 import { mypageApi } from '../../api/mypage';
+import { recommendationApi } from '../../api/recommendation';
 import {
   Linking,
   ScrollView,
@@ -45,6 +46,7 @@ export interface ProgramDetail {
 
 interface Props {
   program: ProgramDetail;
+  preferenceId?: number | null;
   onBack: () => void;
   onApply: (program: ProgramDetail) => void;
   onGoHome: () => void;
@@ -136,6 +138,7 @@ function InfoPill({
 
 export default function ProgramDetailScreen({
   program,
+  preferenceId,
   onBack,
   onApply,
   onGoHome,
@@ -145,6 +148,11 @@ export default function ProgramDetailScreen({
   const [activeTab, setActiveTab] = useState<'info' | 'review'>('info');
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [programReasonList, setProgramReasonList] = useState<string[]>([]);
+  const [reviewKeywordSummary, setReviewKeywordSummary] = useState('');
+  const [reviewKeywordChips, setReviewKeywordChips] = useState<
+    string[] | null
+  >(null);
 
   const matchRate = program.matchRate ?? program.score;
   const spotsLeft = Math.max(program.capacity - program.enrolled, 0);
@@ -154,9 +162,10 @@ export default function ProgramDetailScreen({
     Math.round((program.enrolled / safeCapacity) * 100),
   );
 
-  const reviewChips = program.reviewChips?.length
+  const fallbackReviewChips = program.reviewChips?.length
     ? program.reviewChips
     : ['선생님 친절', '소규모 수업', '피드백 좋음', '아이가 좋아함'];
+  const reviewChips = reviewKeywordChips ?? fallbackReviewChips;
 
   useEffect(() => {
     const fetchBookmarkStatus = async () => {
@@ -186,8 +195,81 @@ export default function ProgramDetailScreen({
     fetchReviews();
   }, [program.id]);
 
-  const aiReasons = useMemo(
-    () => [
+  useEffect(() => {
+    if (!preferenceId) {
+      setProgramReasonList([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchProgramReason = async () => {
+      try {
+        const data = await recommendationApi.getProgramReason(
+          program.id,
+          preferenceId,
+        );
+
+        if (!cancelled) {
+          setProgramReasonList(
+            (data.reasonList ?? []).filter(reason => reason.trim().length > 0),
+          );
+        }
+      } catch (e) {
+        console.error('AI 추천 이유 조회 실패', e);
+
+        if (!cancelled) {
+          setProgramReasonList([]);
+        }
+      }
+    };
+
+    fetchProgramReason();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [program.id, preferenceId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchReviewKeywords = async () => {
+      try {
+        const data = await reviewApi.getReviewKeywords(program.id);
+
+        if (cancelled) {
+          return;
+        }
+
+        setReviewKeywordSummary(data.summary ?? '');
+        setReviewKeywordChips([
+          ...(data.positiveKeywords ?? []),
+          ...(data.negativeKeywords ?? []),
+        ].filter(keyword => keyword.trim().length > 0));
+      } catch (e) {
+        console.error('AI 후기 키워드 조회 실패', e);
+
+        if (!cancelled) {
+          setReviewKeywordSummary('');
+          setReviewKeywordChips(null);
+        }
+      }
+    };
+
+    fetchReviewKeywords();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [program.id]);
+
+  const aiReasons = useMemo(() => {
+    if (programReasonList.length > 0) {
+      return programReasonList;
+    }
+
+    return [
       program.aiReason ??
         '소규모 수업과 선생님 피드백을 원하는 조건에 잘 맞는 프로그램입니다.',
       program.distance !== '-'
@@ -197,9 +279,8 @@ export default function ProgramDetailScreen({
         ? '무료 또는 공공 지원 프로그램이라 비용 부담이 낮아요.'
         : `${program.price}으로 예산 조건에 맞춰 검토하기 좋아요.`,
       `${program.ageRange} 대상 수업이라 자녀 연령 조건과 잘 맞아요.`,
-    ],
-    [program],
-  );
+    ];
+  }, [program, programReasonList]);
 
   const handleOpenWebsite = () => {
     if (!program.website) {
@@ -478,6 +559,10 @@ export default function ProgramDetailScreen({
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>AI 후기 키워드 분석</Text>
 
+                {reviewKeywordSummary ? (
+                  <Text style={styles.sectionBody}>{reviewKeywordSummary}</Text>
+                ) : null}
+
                 <View style={styles.chipRow}>
                   {reviewChips.map(chip => (
                     <View key={chip} style={styles.keywordChip}>
@@ -585,6 +670,10 @@ export default function ProgramDetailScreen({
 
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>AI 후기 키워드 분석</Text>
+
+                {reviewKeywordSummary ? (
+                  <Text style={styles.sectionBody}>{reviewKeywordSummary}</Text>
+                ) : null}
 
                 <View style={styles.chipRow}>
                   {reviewChips.map(chip => (
