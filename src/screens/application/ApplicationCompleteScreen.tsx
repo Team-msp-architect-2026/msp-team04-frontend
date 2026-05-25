@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -9,13 +9,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { ProgramDetail } from '../program/ProgramDetailScreen';
-import type { ApplicationInfo } from './ApplicationFormScreen';
+import type { ApplicationInfo, CreatedApplication } from './ApplicationFormScreen';
 import type { PaymentSummary } from './PaymentScreen';
+import {
+  recommendationApi,
+  type NextRecommendExplainItem,
+} from '../../api/recommendation';
 
 interface ApplicationCompleteScreenProps {
   program: ProgramDetail;
   applicationInfo: ApplicationInfo;
   paymentSummary: PaymentSummary;
+  createdApplication: CreatedApplication;
+  applicationId: number;
   onGoApplications: () => void;
   onGoHome: () => void;
 }
@@ -74,13 +80,63 @@ export default function ApplicationCompleteScreen({
   program,
   applicationInfo,
   paymentSummary,
+  createdApplication,
+  applicationId,
   onGoApplications,
   onGoHome,
 }: ApplicationCompleteScreenProps) {
   const startDate = getStartDate();
+  const [nextRecommendLoading, setNextRecommendLoading] = useState(false);
+  const [nextRecommendMessage, setNextRecommendMessage] = useState('');
+  const [nextRecommendItems, setNextRecommendItems] = useState<
+    NextRecommendExplainItem[]
+  >([]);
+
+  const confirmedProgramTitle = createdApplication.programTitle || program.title;
+  const confirmedReserveNo = `MOMENT-${String(applicationId).padStart(4, '0')}`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadNextRecommend = async () => {
+      try {
+        setNextRecommendLoading(true);
+
+        const result =
+          await recommendationApi.explainNextRecommend(applicationId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setNextRecommendMessage(result.message ?? '');
+        setNextRecommendItems(result.items ?? []);
+      } catch (error) {
+        console.error('AI 다음 추천 설명 조회 실패', error);
+
+        if (!cancelled) {
+          setNextRecommendMessage(
+            'AI 다음 추천을 잠시 불러오지 못했어요. 신청 내역은 정상 저장됐습니다.',
+          );
+          setNextRecommendItems([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setNextRecommendLoading(false);
+        }
+      }
+    };
+
+    loadNextRecommend();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applicationId]);
 
   const summaryRows = [
-    { label: '프로그램', value: program.title },
+    { label: '신청 번호', value: confirmedReserveNo },
+    { label: '프로그램', value: confirmedProgramTitle },
     { label: '아이 이름', value: applicationInfo.childName },
     { label: '보호자', value: applicationInfo.parentName },
     { label: '연락처', value: applicationInfo.parentPhone },
@@ -106,7 +162,7 @@ export default function ApplicationCompleteScreen({
         <Text style={styles.title}>신청이 완료됐어요!</Text>
 
         <Text style={styles.subtitle}>
-          {program.title}
+          {confirmedProgramTitle}
           {'\n'}
           {startDate.short}부터 시작됩니다.
         </Text>
@@ -136,11 +192,28 @@ export default function ApplicationCompleteScreen({
           </View>
 
           <Text style={styles.aiNextDesc}>
-            미술 수업과 함께{' '}
-            <Text style={styles.boldText}>오감 발달 음악 교실</Text>을
-            병행하면 {applicationInfo.childName || '아이'}의 창의력 발달에 더
-            도움이 될 수 있어요.
+            {nextRecommendLoading
+              ? 'AI가 신청 정보를 바탕으로 다음 추천을 정리하고 있어요.'
+              : nextRecommendMessage ||
+                '신청 내역을 바탕으로 다음 추천을 준비하고 있어요.'}
           </Text>
+
+          {nextRecommendItems.length > 0 && (
+            <View style={styles.aiNextList}>
+              {nextRecommendItems.slice(0, 3).map((item, index) => (
+                <View
+                  key={`${item.programId}-${index}`}
+                  style={styles.aiNextItem}
+                >
+                  <Text style={styles.aiNextTag}>{item.highlightTag}</Text>
+                  <Text style={styles.aiNextItemTitle}>{item.title}</Text>
+                  <Text style={styles.aiNextItemDesc}>
+                    {item.explainMessage}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         <TouchableOpacity
@@ -258,6 +331,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6574B6',
     lineHeight: 21,
+  },
+  aiNextList: {
+    marginTop: 12,
+    gap: 10,
+  },
+  aiNextItem: {
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: PALETTE.primaryBorder,
+  },
+  aiNextTag: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: PALETTE.primarySoft,
+    color: PALETTE.primaryDark,
+    fontSize: 11,
+    fontWeight: '900',
+    marginBottom: 7,
+  },
+  aiNextItemTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: PALETTE.text,
+    marginBottom: 5,
+  },
+  aiNextItemDesc: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6574B6',
+    lineHeight: 19,
   },
   boldText: {
     fontWeight: '900',
