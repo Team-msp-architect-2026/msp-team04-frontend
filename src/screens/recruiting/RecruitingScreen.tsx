@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from '../../components/BottomTabBar';
 import CommonHeader from '../../components/CommonHeader';
 import type { ProgramDetail } from '../program/ProgramDetailScreen';
+import { getPrograms, type ProgramListItem } from '../../api/programApi';
 
 type ProgramType = 'public' | 'private' | 'online' | 'government';
 type FilterKey = 'all' | 'urgent' | 'free' | 'online' | 'public';
@@ -129,174 +130,151 @@ const URGENCY_LABELS: Record<
   },
 };
 
-const AVAILABLE_PROGRAMS: RecruitingProgram[] = [
-  {
-    id: 3,
-    title: '창의력 쑥쑥 미술 놀이',
-    organization: '아트키즈 스튜디오',
-    type: 'private',
-    category: '미술',
-    location: '강남구 역삼동',
-    address: '서울 강남구 역삼동 123-4',
-    distance: '1.2km',
-    deadline: 'D-2',
-    urgency: 'urgent',
-    price: '월 9만원',
-    priceValue: 90000,
-    rating: 4.9,
-    reviewCount: 128,
-    ageRange: '만 3~6세',
-    schedule: '토요일 10:00',
-    spotsLeft: 3,
-    capacity: 8,
-    enrolled: 5,
-    isOpen: true,
-    tags: ['미술', '소규모', '창의력'],
-    description:
-      '아이의 창의력과 소근육 발달을 함께 키울 수 있는 소규모 미술 프로그램입니다.',
-    curriculum: ['색채 감각 놀이', '클레이 만들기', '수채화 기초', '작품 발표'],
-    contact: '02-1234-5678',
-    website: 'https://example.com/artkids',
-    isPartner: true,
-    aiReason: '소규모 수업과 선생님 피드백 조건에 잘 맞는 프로그램입니다.',
-    reviewChips: ['선생님 친절', '소규모 수업', '피드백 좋음'],
-    matchRate: 97,
-    startDate: '2026.05.01',
-    endDate: '2026.06.30',
-  },
-  {
-    id: 4,
-    title: '구립 어린이 창의교실',
-    organization: '강남구청',
-    type: 'public',
-    category: '창의력',
-    location: '강남구 대치동',
-    address: '서울 강남구 대치동 88-2',
-    distance: '0.8km',
-    deadline: 'D-3',
-    urgency: 'urgent',
-    price: '무료',
-    priceValue: 0,
-    rating: 4.8,
-    reviewCount: 124,
-    ageRange: '만 5~9세',
-    schedule: '평일 14:00',
-    spotsLeft: 4,
-    capacity: 20,
-    enrolled: 16,
-    isOpen: true,
-    tags: ['공공', '창의력', '무료'],
-    description:
-      '공공기관에서 운영하는 어린이 창의 프로그램으로 비용 부담 없이 참여할 수 있습니다.',
-    curriculum: ['문제 해결 놀이', '창의 보드게임', '협동 활동', '발표 활동'],
-    contact: '02-2345-6789',
-    isPartner: false,
-    aiReason: '무료 공공 프로그램을 찾는 조건에 잘 맞는 추천입니다.',
-    reviewChips: ['무료', '공공기관', '접근성 좋음'],
-    matchRate: 94,
-    startDate: '2026.05.05',
-    endDate: '2026.07.05',
-  },
-  {
-    id: 6,
-    title: '키즈 영어 스피킹 클래스',
-    organization: '스마트 에듀',
-    type: 'private',
-    category: '영어',
-    location: '강남구 삼성동',
-    address: '서울 강남구 삼성동 44-1',
-    distance: '1.6km',
-    deadline: 'D-5',
-    urgency: 'soon',
-    price: '월 15만원',
-    priceValue: 150000,
-    rating: 4.6,
-    reviewCount: 89,
-    ageRange: '만 6~10세',
-    schedule: '화/목 16:00',
-    spotsLeft: 8,
-    capacity: 16,
-    enrolled: 8,
-    isOpen: true,
-    tags: ['영어', '회화', '소그룹'],
-    description: '원어민 선생님과 함께하는 실전 영어 회화 수업입니다.',
-    curriculum: ['파닉스 복습', '상황별 표현', '스피킹 게임', '미니 발표'],
-    contact: '02-3456-7890',
-    website: 'https://example.com/smartedu',
-    isPartner: true,
-    aiReason: '영어 말하기와 소그룹 수업을 원하는 조건에 적합합니다.',
-    reviewChips: ['회화 중심', '아이가 좋아함', '소그룹'],
-    matchRate: 91,
-    startDate: '2026.05.10',
-    endDate: '2026.07.30',
-  },
-  {
-    id: 8,
-    title: '초등 코딩 부트캠프',
-    organization: '코드키즈',
-    type: 'online',
-    category: '코딩',
-    location: '온라인',
-    address: '온라인 수업',
+function getCategoryLabel(category: string | null): string {
+  const categoryMap: Record<string, string> = {
+    EDUCATION: '교육',
+    CARE: '돌봄',
+    ART: '미술',
+    SPORTS: '체육',
+    MUSIC: '음악',
+    LANGUAGE: '언어',
+    CODING: '코딩',
+    BENEFIT: '지원',
+  };
+
+  if (!category) {
+    return '기타';
+  }
+
+  return categoryMap[category] ?? category;
+}
+
+function getProgramType(program: ProgramListItem): ProgramType {
+  if (program.classType === 'ONLINE') {
+    return 'online';
+  }
+
+  if (program.category === 'BENEFIT') {
+    return 'government';
+  }
+
+  if (program.isFree || program.price === 0) {
+    return 'public';
+  }
+
+  return 'private';
+}
+
+function formatPrice(program: ProgramListItem): string {
+  if (program.isFree || program.price === 0) {
+    return '무료';
+  }
+
+  if (program.price == null) {
+    return '가격 확인 필요';
+  }
+
+  return `${program.price.toLocaleString()}원`;
+}
+
+function getDeadlineLabel(deadlineDate: string | null): string {
+  if (!deadlineDate) {
+    return '상시';
+  }
+
+  const today = new Date();
+  const deadline = new Date(`${deadlineDate}T00:00:00`);
+  const diffDays = Math.ceil(
+    (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (Number.isNaN(diffDays)) {
+    return '마감일 확인';
+  }
+
+  if (diffDays < 0) {
+    return '마감일 확인';
+  }
+
+  if (diffDays === 0) {
+    return '오늘 마감';
+  }
+
+  return `D-${diffDays}`;
+}
+
+function getUrgency(program: ProgramListItem): RecruitingProgram['urgency'] {
+  if (!program.deadlineDate) {
+    return 'normal';
+  }
+
+  const today = new Date();
+  const deadline = new Date(`${program.deadlineDate}T00:00:00`);
+  const diffDays = Math.ceil(
+    (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (Number.isNaN(diffDays) || diffDays < 0) {
+    return 'normal';
+  }
+
+  if (diffDays <= 3) {
+    return 'urgent';
+  }
+
+  if (diffDays <= 7) {
+    return 'soon';
+  }
+
+  return 'normal';
+}
+
+function toRecruitingProgram(program: ProgramListItem): RecruitingProgram {
+  const categoryLabel = getCategoryLabel(program.category);
+  const capacity = program.maxCapacity ?? 0;
+  const spotsLeft = Math.max(program.remainCapacity ?? 0, 0);
+  const enrolled = Math.max(capacity - spotsLeft, 0);
+  const rating = program.ratingAvg ?? 0;
+  const type = getProgramType(program);
+
+  return {
+    id: program.id,
+    title: program.name,
+    organization: program.region ? `${program.region} 운영기관` : '운영기관 확인 필요',
+    type,
+    category: categoryLabel,
+    location: program.region ?? '지역 확인 필요',
+    address: program.detailAddress ?? program.region ?? '주소 확인 필요',
     distance: '-',
-    deadline: 'D-7',
-    urgency: 'normal',
-    price: '월 8만원',
-    priceValue: 80000,
-    rating: 4.5,
-    reviewCount: 256,
-    ageRange: '만 7~12세',
-    schedule: '자유 수강',
-    spotsLeft: 20,
-    capacity: 40,
-    enrolled: 20,
-    isOpen: true,
-    tags: ['코딩', '온라인', 'SW교육'],
-    description: '스크래치와 파이썬 기초를 배우는 온라인 코딩 프로그램입니다.',
-    curriculum: ['스크래치 기초', '알고리즘 놀이', '미니 게임 제작', '프로젝트 발표'],
-    contact: '02-4567-8901',
-    website: 'https://example.com/codekids',
-    isPartner: false,
-    aiReason: '온라인 수업과 코딩 관심사 조건에 맞는 프로그램입니다.',
-    reviewChips: ['자유 수강', '코딩 입문', '재등록 의향'],
-    matchRate: 87,
-    startDate: '2026.05.15',
-    endDate: '2026.08.15',
-  },
-  {
-    id: 10,
-    title: '아이돌봄 서비스',
-    organization: '여성가족부',
-    type: 'government',
-    category: '돌봄',
-    location: '가정 방문',
-    address: '가정 방문 서비스',
-    distance: '-',
-    deadline: '상시',
-    urgency: 'normal',
-    price: '시간당 1,150원~',
-    priceValue: 1150,
-    rating: 4.7,
-    reviewCount: 1024,
-    ageRange: '만 3~12세',
-    schedule: '협의 가능',
-    spotsLeft: 30,
-    capacity: 50,
-    enrolled: 20,
-    isOpen: true,
-    tags: ['돌봄', '정부지원', '방문'],
-    description: '정부 지원으로 저렴하게 이용 가능한 아이돌봄 서비스입니다.',
-    curriculum: ['등하원 보조', '놀이 돌봄', '식사 챙김', '안전 관리'],
-    contact: '1577-2514',
-    website: 'https://example.com/care',
-    isPartner: false,
-    aiReason: '돌봄 공백을 줄이고 비용 부담을 낮추는 데 적합합니다.',
-    reviewChips: ['정부지원', '돌봄 공백 완화', '비용 부담 낮음'],
-    matchRate: 83,
-    startDate: '2026.05.01',
-    endDate: '2026.12.31',
-  },
-];
+    deadline: getDeadlineLabel(program.deadlineDate),
+    urgency: getUrgency(program),
+    price: formatPrice(program),
+    priceValue: program.price ?? 0,
+    rating,
+    reviewCount: program.reviewCount ?? 0,
+    ageRange: '대상 연령 확인 필요',
+    schedule: program.classType ?? '운영 일정 확인 필요',
+    spotsLeft,
+    capacity,
+    enrolled,
+    isOpen: program.isRecruiting,
+    tags: [
+      categoryLabel,
+      program.isFree ? '무료' : '유료',
+      program.region ?? '지역 확인',
+    ],
+    description: `${program.name} 프로그램입니다. 자세한 운영 내용은 상세 화면에서 확인해 주세요.`,
+    curriculum: ['프로그램 소개', '참여 활동', '마무리 및 피드백'],
+    contact: '문의처 확인 필요',
+    website: undefined,
+    isPartner: type === 'private',
+    aiReason: undefined,
+    reviewChips: undefined,
+    matchRate: rating > 0 ? Math.min(Math.round(rating * 20), 99) : 80,
+    startDate: '운영 시작일 확인 필요',
+    endDate: program.deadlineDate ?? '운영 종료일 확인 필요',
+  };
+}
 
 function toProgramDetail(program: RecruitingProgram): ProgramDetail {
   return {
@@ -339,47 +317,90 @@ export default function RecruitingScreen({
 }: RecruitingScreenProps) {
   const [likedPrograms, setLikedPrograms] = useState<number[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [programs, setPrograms] = useState<RecruitingProgram[]>([]);
+  const [programLoading, setProgramLoading] = useState(false);
+  const [programErrorMessage, setProgramErrorMessage] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchPrograms = async () => {
+      setProgramLoading(true);
+      setProgramErrorMessage('');
+
+      try {
+        const response = await getPrograms({
+          status: 'RECRUITING',
+          page: 0,
+          size: 50,
+        });
+
+        if (!cancelled) {
+          setPrograms(response.data.content.map(toRecruitingProgram));
+        }
+      } catch (error) {
+        console.error('모집중 프로그램 조회 실패', error);
+
+        if (!cancelled) {
+          setPrograms([]);
+          setProgramErrorMessage(
+            '모집중 프로그램을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setProgramLoading(false);
+        }
+      }
+    };
+
+    fetchPrograms();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredPrograms = useMemo(() => {
     if (activeFilter === 'urgent') {
-      return AVAILABLE_PROGRAMS.filter(
+      return programs.filter(
         program => program.urgency === 'urgent' || program.urgency === 'soon',
       );
     }
 
     if (activeFilter === 'free') {
-      return AVAILABLE_PROGRAMS.filter(program => program.priceValue === 0);
+      return programs.filter(program => program.priceValue === 0);
     }
 
     if (activeFilter === 'online') {
-      return AVAILABLE_PROGRAMS.filter(program => program.type === 'online');
+      return programs.filter(program => program.type === 'online');
     }
 
     if (activeFilter === 'public') {
-      return AVAILABLE_PROGRAMS.filter(
+      return programs.filter(
         program => program.type === 'public' || program.type === 'government',
       );
     }
 
-    return AVAILABLE_PROGRAMS;
-  }, [activeFilter]);
+    return programs;
+  }, [activeFilter, programs]);
 
-  const urgentCount = AVAILABLE_PROGRAMS.filter(
+  const urgentCount = programs.filter(
     program => program.urgency === 'urgent' || program.urgency === 'soon',
   ).length;
 
-  const freeCount = AVAILABLE_PROGRAMS.filter(
+  const freeCount = programs.filter(
     program => program.priceValue === 0,
   ).length;
 
-  const onlineCount = AVAILABLE_PROGRAMS.filter(
+  const onlineCount = programs.filter(
     program => program.type === 'online',
   ).length;
 
   const heroStats = [
     {
       key: 'all',
-      value: AVAILABLE_PROGRAMS.length,
+      value: programs.length,
       label: '전체',
       color: PALETTE.text,
     },
@@ -482,7 +503,25 @@ export default function RecruitingScreen({
         </View>
 
         <View style={styles.programList}>
-          {filteredPrograms.map(program => {
+          {programLoading && (
+            <Text style={{ paddingVertical: 20, textAlign: 'center', color: PALETTE.subText, fontWeight: '700' }}>
+              모집중 프로그램을 불러오는 중입니다.
+            </Text>
+          )}
+
+          {!programLoading && programErrorMessage ? (
+            <Text style={{ paddingVertical: 20, textAlign: 'center', color: PALETTE.coralDark, fontWeight: '700' }}>
+              {programErrorMessage}
+            </Text>
+          ) : null}
+
+          {!programLoading && !programErrorMessage && filteredPrograms.length === 0 ? (
+            <Text style={{ paddingVertical: 20, textAlign: 'center', color: PALETTE.subText, fontWeight: '700' }}>
+              조건에 맞는 모집중 프로그램이 없습니다.
+            </Text>
+          ) : null}
+
+          {!programLoading && filteredPrograms.map(program => {
             const urgency = URGENCY_LABELS[program.urgency];
             const liked = likedPrograms.includes(program.id);
 
