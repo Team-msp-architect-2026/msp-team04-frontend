@@ -13,23 +13,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../../constants';
+import { uploadProfileImage } from '../../api/profileImageUploadApi';
 
 interface ProfileEditScreenProps {
   userName: string;
+  initialAvatar?: string;
   onBack: () => void;
-  onSave: (name: string, avatar?: string) => void;
+  onSave: (name: string, avatar?: string) => void | Promise<void>;
 }
 
 export default function ProfileEditScreen({
   userName,
+  initialAvatar,
   onBack,
   onSave,
 }: ProfileEditScreenProps) {
   const [name, setName] = useState(userName);
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(initialAvatar ?? null);
+  const [saving, setSaving] = useState(false);
 
   const trimmedName = name.trim();
-  const isSaveDisabled = !trimmedName;
+  const isSaveDisabled = !trimmedName || saving;
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -58,9 +62,28 @@ export default function ProfileEditScreen({
     ]);
   };
 
-  const handleSave = () => {
-    if (trimmedName) {
-      onSave(trimmedName, avatar || undefined);
+  const handleSave = async () => {
+    if (!trimmedName || saving) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const savedAvatar =
+        avatar && avatar.startsWith('file://')
+          ? (await uploadProfileImage(avatar)).fileUrl
+          : avatar ?? undefined;
+
+      await onSave(trimmedName, savedAvatar);
+    } catch (error) {
+      console.error('프로필 이미지 저장 실패:', error);
+      Alert.alert(
+        '저장 실패',
+        '프로필 이미지를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.',
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -85,7 +108,7 @@ export default function ProfileEditScreen({
           activeOpacity={0.76}
         >
           <Text style={[s.saveText, isSaveDisabled && s.saveTextDisabled]}>
-            저장
+            {saving ? '저장 중...' : '저장'}
           </Text>
         </TouchableOpacity>
       </View>
