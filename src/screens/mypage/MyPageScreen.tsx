@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from '../../components/BottomTabBar';
@@ -14,6 +15,7 @@ import { colors } from '../../constants';
 
 interface MyPageScreenProps {
   userName: string;
+  profileImageUrl?: string;
   hasChildInfo: boolean;
   childName?: string;
   childAge?: number;
@@ -68,6 +70,7 @@ const MENU_ITEMS: MenuItem[] = [
 
 export default function MyPageScreen({
   userName,
+  profileImageUrl,
   hasChildInfo,
   childName,
   childAge,
@@ -99,7 +102,23 @@ export default function MyPageScreen({
         <View style={s.profileSection}>
           <View style={s.profileRow}>
             <View style={s.avatar}>
-              <Text style={s.avatarText}>{initial}</Text>
+              {profileImageUrl ? (
+                <Image
+                  source={{ uri: profileImageUrl }}
+                  style={s.avatarImage}
+                  onLoad={() => {
+                    console.log('마이페이지 프로필 이미지 로드 성공');
+                  }}
+                  onError={(error) => {
+                    console.log('마이페이지 프로필 이미지 로드 실패:', {
+                      message: error.nativeEvent.error,
+                      hasProfileImageUrl: Boolean(profileImageUrl),
+                    });
+                  }}
+                />
+              ) : (
+                <Text style={s.avatarText}>{initial}</Text>
+              )}
             </View>
 
             <View style={s.profileInfo}>
@@ -251,6 +270,12 @@ const s = StyleSheet.create({
     backgroundColor: colors.primary.default,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 28,
   },
 
   avatarText: {
