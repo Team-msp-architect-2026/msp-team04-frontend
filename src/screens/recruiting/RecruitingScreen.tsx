@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +12,7 @@ import BottomTabBar from '../../components/BottomTabBar';
 import CommonHeader from '../../components/CommonHeader';
 import type { ProgramDetail } from '../program/ProgramDetailScreen';
 import { getPrograms, type ProgramListItem } from '../../api/programApi';
+import { mypageApi } from '../../api/mypage';
 
 type ProgramType = 'public' | 'private' | 'online' | 'government';
 type FilterKey = 'all' | 'urgent' | 'free' | 'online' | 'public';
@@ -21,6 +23,7 @@ interface RecruitingProgram {
   organization: string;
   type: ProgramType;
   category: string;
+  imageUrl: string | null;
   location: string;
   address: string;
   distance: string;
@@ -244,6 +247,7 @@ function toRecruitingProgram(program: ProgramListItem): RecruitingProgram {
     organization: program.region ? `${program.region} 운영기관` : '운영기관 확인 필요',
     type,
     category: categoryLabel,
+    imageUrl: program.imageUrl ?? null,
     location: program.region ?? '지역 확인 필요',
     address: program.detailAddress ?? program.region ?? '주소 확인 필요',
     distance: '-',
@@ -318,10 +322,33 @@ export default function RecruitingScreen({
   initialFilter,
 }: RecruitingScreenProps) {
   const [likedPrograms, setLikedPrograms] = useState<number[]>([]);
+  const [bookmarkLoadingIds, setBookmarkLoadingIds] = useState<number[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [programs, setPrograms] = useState<RecruitingProgram[]>([]);
   const [programLoading, setProgramLoading] = useState(false);
   const [programErrorMessage, setProgramErrorMessage] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchBookmarks = async () => {
+      try {
+        const bookmarks = await mypageApi.getBookmarkList();
+
+        if (!cancelled) {
+          setLikedPrograms(bookmarks.map(item => item.programId));
+        }
+      } catch (error) {
+        console.error('북마크 목록 조회 실패', error);
+      }
+    };
+
+    fetchBookmarks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -426,12 +453,26 @@ export default function RecruitingScreen({
     },
   ];
 
-  const toggleLike = (id: number) => {
-    setLikedPrograms(prev =>
-      prev.includes(id)
-        ? prev.filter(programId => programId !== id)
-        : [...prev, id],
-    );
+  const toggleLike = async (id: number) => {
+    if (bookmarkLoadingIds.includes(id)) {
+      return;
+    }
+
+    setBookmarkLoadingIds(prev => [...prev, id]);
+
+    try {
+      const result = await mypageApi.toggleBookmark(id);
+
+      setLikedPrograms(prev => {
+        const withoutCurrent = prev.filter(programId => programId !== id);
+
+        return result.bookmarked ? [...withoutCurrent, id] : withoutCurrent;
+      });
+    } catch (error) {
+      console.error('북마크 토글 실패', error);
+    } finally {
+      setBookmarkLoadingIds(prev => prev.filter(programId => programId !== id));
+    }
   };
 
   const handleOpenProgram = (program: RecruitingProgram) => {
@@ -536,17 +577,19 @@ export default function RecruitingScreen({
               >
                 <View style={styles.cardTop}>
                   <View style={styles.thumbBox}>
-                    <Text style={styles.thumbEmoji}>
-                      {program.category === '미술'
-                        ? '🎨'
-                        : program.category === '영어'
-                          ? '🔤'
-                          : program.category === '코딩'
-                            ? '💻'
-                            : program.category === '돌봄'
-                              ? '🧸'
-                              : '📚'}
-                    </Text>
+                    {program.imageUrl ? (
+                      <Image
+                        source={{ uri: program.imageUrl }}
+                        style={{ width: '100%', height: '100%', borderRadius: 14 }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Image
+                        source={require('../../../assets/default-program.png')}
+                        style={{ width: '100%', height: '100%', borderRadius: 14 }}
+                        resizeMode="cover"
+                      />
+                    )}
                   </View>
 
                   <View style={styles.cardBody}>
@@ -600,6 +643,7 @@ export default function RecruitingScreen({
                   <TouchableOpacity
                     style={styles.likeButton}
                     onPress={() => toggleLike(program.id)}
+                    disabled={bookmarkLoadingIds.includes(program.id)}
                     activeOpacity={0.75}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
