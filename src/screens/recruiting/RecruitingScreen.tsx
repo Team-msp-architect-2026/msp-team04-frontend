@@ -54,6 +54,7 @@ interface RecruitingScreenProps {
   onSearchClick?: () => void;
   onNotificationClick?: () => void;
   onProgramClick?: (program: ProgramDetail) => void;
+  initialFilter?: string;
 }
 
 const PALETTE = {
@@ -314,6 +315,7 @@ export default function RecruitingScreen({
   onSearchClick,
   onNotificationClick,
   onProgramClick,
+  initialFilter,
 }: RecruitingScreenProps) {
   const [likedPrograms, setLikedPrograms] = useState<number[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');

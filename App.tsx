@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -120,6 +120,31 @@ export default function App() {
   const { setRegion } = useRecommendFilterStore();
 
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
+
+  const [backendStatus, setBackendStatus] = useState('백엔드 연결 확인 중...');
+
+  const [applyInitialFilter, setApplyInitialFilter] = useState<string>('all');
+
+useEffect(() => {
+  fetch('http://192.168.0.18:8080/v3/api-docs')
+    .then((res) => {
+      console.log('백엔드 응답 상태:', res.status);
+
+      if (!res.ok) {
+        throw new Error(`HTTP 상태 코드: ${res.status}`);
+      }
+
+      return res.json();
+    })
+    .then((data) => {
+      console.log('백엔드 연결 성공:', data.info?.title);
+      setBackendStatus('백엔드 연결 성공');
+    })
+    .catch((error) => {
+      console.error('백엔드 연결 실패:', error);
+      setBackendStatus('백엔드 연결 실패');
+    });
+}, []);
 
   const [filterData, setFilterData] = useState<FilterData | null>({
     ageGroup: '',
@@ -273,6 +298,7 @@ export default function App() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <View style={styles.root}>
+        <Text style={styles.backendStatus}>{backendStatus}</Text>
           {false && (
           <View style={styles.devPanel}>
             <TouchableOpacity
@@ -360,6 +386,16 @@ export default function App() {
               onSupportClick={() => setCurrentScreen('benefit')}
               onAiReportClick={() => setCurrentScreen('aiReport')}
               onSearchClick={() => setCurrentScreen('search')}
+              onUrgentMoreClick={() => {
+      setApplyInitialFilter('urgent');
+      setCurrentScreen('apply');
+    }}
+    onProgramClick={(program) => {
+      setSelectedProgram(program);
+      setProgramDetailBackScreen('home');
+      clearApplicationFlow();
+      setCurrentScreen('programDetail');
+    }}
             />
           )}
 
@@ -489,18 +525,22 @@ export default function App() {
           )}
 
           {currentScreen === 'apply' && (
-            <RecruitingScreen
-              onTabChange={(tab) => setCurrentScreen(tab as Screen)}
-              onSearchClick={() => setCurrentScreen('search')}
-              onNotificationClick={() => setCurrentScreen('notification')}
-              onProgramClick={(program) => {
-                setSelectedProgram(program);
-                setProgramDetailBackScreen('apply');
-                clearApplicationFlow();
-                setCurrentScreen('programDetail');
-              }}
-            />
-          )}
+  <RecruitingScreen
+    initialFilter={applyInitialFilter}
+    onTabChange={(tab) => {
+      setApplyInitialFilter('all');
+      setCurrentScreen(tab as Screen);
+    }}
+    onSearchClick={() => setCurrentScreen('search')}
+    onNotificationClick={() => setCurrentScreen('notification')}
+    onProgramClick={(program) => {
+      setSelectedProgram(program);
+      setProgramDetailBackScreen('apply');
+      clearApplicationFlow();
+      setCurrentScreen('programDetail');
+    }}
+  />
+)}
 
           {currentScreen === 'community' && (
             <CommunityScreen
@@ -823,4 +863,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1A1A1A',
   },
+
+  backendStatus: {
+  paddingTop: 50,
+  paddingBottom: 8,
+  textAlign: 'center',
+  backgroundColor: '#E0F2FE',
+  color: '#0369A1',
+  fontSize: 14,
+  fontWeight: '700',
+},
 });

@@ -4,6 +4,8 @@ import { tokenStorage } from './tokenStorage';
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
+  console.log('API BASE_URL:', BASE_URL);
+
 const client = axios.create({
   baseURL: BASE_URL,
   timeout: 10000,
@@ -27,6 +29,12 @@ const processQueue = (error: unknown, token: string | null) => {
 client.interceptors.request.use(async (config) => {
   const token = await tokenStorage.getAccessToken();
 
+  console.log(
+    'API 요청:',
+    config.method?.toUpperCase(),
+    `${config.baseURL}${config.url}`,
+  );
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -35,7 +43,16 @@ client.interceptors.request.use(async (config) => {
 });
 
 client.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(
+  'API 응답:',
+  response.status,
+  response.config.url,
+  JSON.stringify(response.data, null, 2),
+);
+
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 
