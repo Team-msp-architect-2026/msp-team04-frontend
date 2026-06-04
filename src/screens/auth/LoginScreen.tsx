@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, spacing, typography } from '../../constants';
 import * as WebBrowser from 'expo-web-browser';
 import { tokenStorage } from '../../api/tokenStorage';
+import * as Linking from 'expo-linking';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const KAKAO_CLIENT_ID = 'f4c7c025c81b57486c08a43afd423e5d';
 const REDIRECT_URI = 'https://destiny-why-aloe.ngrok-free.dev/auth/kakao';
@@ -13,34 +16,50 @@ interface LoginScreenProps {
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const handleKakaoLogin = async () => {
-    try {
-      const authUrl =
-        `https://kauth.kakao.com/oauth/authorize` +
-        `?response_type=code` +
-        `&client_id=${KAKAO_CLIENT_ID}` +
-        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+  try {
+    const appReturnUrl = Linking.createURL('auth');
 
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, 'momentapp://auth');
-console.log('카카오 로그인 결과:', result);
+    const authUrl =
+      `https://kauth.kakao.com/oauth/authorize` +
+      `?response_type=code` +
+      `&client_id=${KAKAO_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+      `&state=${encodeURIComponent(appReturnUrl)}`;
 
-      if (result.type === 'success' && result.url) {
-        const url = new URL(result.url);
-        const accessToken = url.searchParams.get('accessToken');
-        const refreshToken = url.searchParams.get('refreshToken');
+    console.log('앱 복귀 URL:', appReturnUrl);
+    console.log('카카오 인증 URL:', authUrl);
 
-        if (!accessToken || !refreshToken) {
-          console.error('토큰을 받지 못했어요.', result.url);
-          return;
-        }
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, appReturnUrl);
+    console.log('카카오 로그인 결과:', result);
 
-        await tokenStorage.setAccessToken(accessToken);
-        await tokenStorage.setRefreshToken(refreshToken);
-        onLoginSuccess();
+    if (result.type === 'success' && result.url) {
+      const parsedUrl = Linking.parse(result.url);
+
+      const accessTokenParam = parsedUrl.queryParams?.accessToken;
+      const refreshTokenParam = parsedUrl.queryParams?.refreshToken;
+
+      const accessToken = Array.isArray(accessTokenParam)
+        ? accessTokenParam[0]
+        : accessTokenParam;
+
+      const refreshToken = Array.isArray(refreshTokenParam)
+        ? refreshTokenParam[0]
+        : refreshTokenParam;
+
+      if (!accessToken || !refreshToken) {
+        console.error('토큰을 받지 못했어요.', result.url);
+        return;
       }
-    } catch (e) {
-      console.error('카카오 로그인 실패', e);
+
+      await tokenStorage.setAccessToken(accessToken);
+      await tokenStorage.setRefreshToken(refreshToken);
+
+      onLoginSuccess();
     }
-  };
+  } catch (e) {
+    console.error('카카오 로그인 실패', e);
+  }
+};
 
   return (
     <View style={styles.container}>

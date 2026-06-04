@@ -8,7 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography } from '../../constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import CommonHeader from '../../components/CommonHeader';
-import { getPrograms } from '../../api/programApi';
+import { getHomePrograms } from '../../api/programApi';
+import type { ProgramDetail } from '../program/ProgramDetailScreen';
  
  
 // ─────────────────────────────────────────────
@@ -35,6 +36,8 @@ interface HomeScreenProps {
   onAiReportClick?: () => void;
   onSearchClick?: () => void;
   onNotificationClick?: () => void;
+  onUrgentMoreClick?: () => void;
+  onProgramClick?: (program: ProgramDetail) => void;
 }
  
 const communityPosts = [
@@ -111,6 +114,39 @@ function ApplyImage() {
 }
  
 // ─────────────────────────────────────────────
+// API 데이터 → ProgramDetail 변환
+// ─────────────────────────────────────────────
+function toProgramDetail(p: any): ProgramDetail {
+  return {
+    id: p.id,
+    title: p.name,
+    organization: p.region ? `${p.region} 운영기관` : '운영기관 확인 필요',
+    type: p.classType === 'ONLINE' ? 'online' : (p.isFree || p.price === 0) ? 'public' : 'private',
+    location: p.region ?? '지역 확인 필요',
+    address: p.detailAddress ?? p.region ?? '주소 확인 필요',
+    distance: '-',
+    price: (p.isFree || p.price === 0) ? '무료' : p.price ? `${p.price.toLocaleString()}원` : '가격 확인 필요',
+    priceValue: p.price ?? 0,
+    rating: p.ratingAvg ?? 0,
+    reviewCount: p.reviewCount ?? 0,
+    ageRange: '대상 연령 확인 필요',
+    schedule: p.classType ?? '운영 일정 확인 필요',
+    score: 80,
+    isOpen: p.isRecruiting ?? true,
+    tags: [p.category ?? '기타', p.isFree ? '무료' : '유료'],
+    description: `${p.name} 프로그램입니다.`,
+    curriculum: ['프로그램 소개', '참여 활동', '마무리 및 피드백'],
+    contact: '문의처 확인 필요',
+    capacity: p.maxCapacity ?? 0,
+    enrolled: Math.max((p.maxCapacity ?? 0) - (p.remainCapacity ?? 0), 0),
+    startDate: '운영 시작일 확인 필요',
+    endDate: p.deadlineDate ?? '운영 종료일 확인 필요',
+    isPartner: false,
+    matchRate: 80,
+  };
+}
+ 
+// ─────────────────────────────────────────────
 // 메인 컴포넌트
 // ─────────────────────────────────────────────
 const BG = '#fff';
@@ -121,21 +157,33 @@ export default function HomeScreen({
   onEditChild, onMapClick, onSupportClick,
   onSearchClick, onNotificationClick,
   onAiReportClick,
+  onUrgentMoreClick,
+  onProgramClick,
 }: HomeScreenProps) {
  
   // ── API 데이터 상태 ──
-  const [freeList, setFreeList] = useState<any[]>([]);
-  const [urgentList, setUrgentList] = useState<any[]>([]);
+const [freeList, setFreeList] = useState<any[]>([]);
+const [urgentList, setUrgentList] = useState<any[]>([]);
+const [onlineList, setOnlineList] = useState<any[]>([]);
  
   useEffect(() => {
-    getPrograms()
-      .then((res) => {
-        const items: any[] = res.data?.content ?? [];
-        setFreeList(items.filter((p) => p.isFree).slice(0, 5));
-        setUrgentList(items.filter((p) => p.isRecruiting).slice(0, 5));
-      })
-      .catch((e) => console.error('프로그램 목록 조회 실패:', e));
-  }, []);
+  getHomePrograms()
+    .then((res) => {
+      const data = res.data;
+ 
+      console.log('홈 프로그램 응답:', data);
+      console.log('무료 프로그램 개수:', data?.freePrograms?.length);
+      console.log('마감 임박 프로그램 개수:', data?.urgentPrograms?.length);
+      console.log('온라인 프로그램 개수:', data?.onlinePrograms?.length);
+ 
+      setFreeList(data?.freePrograms ?? []);
+      setUrgentList(data?.urgentPrograms ?? []);
+      setOnlineList(data?.onlinePrograms ?? []);
+    })
+    .catch((e) => {
+      console.error('홈 프로그램 조회 실패:', e);
+    });
+}, []);
  
   return (
     <View style={styles.container}>
@@ -276,7 +324,11 @@ export default function HomeScreen({
               {[
                 { image: require('../../../assets/map-pin.png'),  label: '내 주변\n찾기',       action: onMapClick },
                 { image: require('../../../assets/wallet.png'),   label: '지원금\n확인',        action: onSupportClick },
-                { image: require('../../../assets/post-it.png'),  label: '무료·공공\n프로그램', action: () => {} },
+                {
+                  image: require('../../../assets/post-it.png'),
+                  label: '무료·공공\n프로그램',
+                  action: () => onTabChange('apply')
+                },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.label}
@@ -331,18 +383,27 @@ export default function HomeScreen({
               <View style={styles.sectionTitleRow}>
                 <Text style={styles.sectionTitle}>무료·공공 프로그램</Text>
               </View>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => onTabChange('apply')}>
                 <Text style={styles.moreText}>더보기</Text>
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hScroll}>
               {freeList.length > 0 ? (
                 freeList.map((p) => (
-                  <View key={p.id} style={styles.programCard}>
-                    <View style={[styles.programImg, { backgroundColor: '#BAE6FD' }]} />
+                  <TouchableOpacity
+                    key={p.id}
+                    style={styles.programCard}
+                    onPress={() => onProgramClick ? onProgramClick(toProgramDetail(p)) : onTabChange('apply')}
+                    activeOpacity={0.8}
+                  >
+                    {p.imageUrl ? (
+                      <Image source={{ uri: p.imageUrl }} style={styles.programImg} />
+                    ) : (
+                      <Image source={require('../../../assets/default-program.png')} style={styles.programImg} resizeMode="cover" />
+                    )}
                     <Text style={styles.programTitle} numberOfLines={2}>{p.name}</Text>
                     <Text style={styles.programLoc}>{p.region} · 무료</Text>
-                  </View>
+                  </TouchableOpacity>
                 ))
               ) : (
                 <Text style={{ color: '#bbb', fontSize: 13, paddingVertical: 12 }}>불러오는 중...</Text>
@@ -422,26 +483,75 @@ export default function HomeScreen({
           <View style={styles.whiteBlock}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
-                <Text style={styles.sectionTitle}>오늘 마감 임박 프로그램</Text>
+                <Text style={styles.sectionTitle}>마감 임박 프로그램</Text>
               </View>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={onUrgentMoreClick ?? (() => onTabChange('apply'))}>
                 <Text style={styles.moreText}>더보기</Text>
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hScroll}>
               {urgentList.length > 0 ? (
                 urgentList.map((p) => (
-                  <View key={p.id} style={[styles.programCard, { position: 'relative' }]}>
-                    <View style={[styles.programImg, { backgroundColor: '#FFE9E9' }]} />
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.programCard, { position: 'relative' }]}
+                    onPress={() => onProgramClick ? onProgramClick(toProgramDetail(p)) : onTabChange('apply')}
+                    activeOpacity={0.8}
+                  >
+                    {p.imageUrl ? (
+                      <Image source={{ uri: p.imageUrl }} style={styles.programImg} />
+                    ) : (
+                      <Image source={require('../../../assets/default-program.png')} style={styles.programImg} resizeMode="cover" />
+                    )}
                     <View style={styles.urgentBadge}>
                       <Text style={styles.urgentBadgeText}>모집중</Text>
                     </View>
                     <Text style={styles.programTitle} numberOfLines={2}>{p.name}</Text>
                     <Text style={styles.programLoc}>{p.region} · {p.category}</Text>
-                  </View>
+                  </TouchableOpacity>
                 ))
               ) : (
                 <Text style={{ color: '#bbb', fontSize: 13, paddingVertical: 12 }}>불러오는 중...</Text>
+              )}
+            </ScrollView>
+          </View>
+ 
+          {/* ── 온라인 프로그램 (API 데이터) ── */}
+          <View style={styles.whiteBlock}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Text style={styles.sectionTitle}>온라인 프로그램</Text>
+              </View>
+              <TouchableOpacity onPress={() => onTabChange('apply')}>
+                <Text style={styles.moreText}>더보기</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hScroll}>
+              {onlineList.length > 0 ? (
+                onlineList.map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={styles.programCard}
+                    onPress={() => onProgramClick ? onProgramClick(toProgramDetail(p)) : onTabChange('apply')}
+                    activeOpacity={0.8}
+                  >
+                    {p.imageUrl ? (
+                      <Image source={{ uri: p.imageUrl }} style={styles.programImg} />
+                    ) : (
+                      <Image source={require('../../../assets/default-program.png')} style={styles.programImg} resizeMode="cover" />
+                    )}
+                    <Text style={styles.programTitle} numberOfLines={2}>
+                      {p.name}
+                    </Text>
+                    <Text style={styles.programLoc}>
+                      {p.region ?? '온라인'} · 온라인
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={{ color: '#bbb', fontSize: 13, paddingVertical: 12 }}>
+                  온라인 프로그램이 없습니다.
+                </Text>
               )}
             </ScrollView>
           </View>

@@ -27,6 +27,7 @@ export interface ProgramListItem {
   deadlineDate: string | null;
   ratingAvg: number | null;
   reviewCount: number | null;
+  description: string | null;
 }
 
 export interface ProgramPage {
@@ -39,6 +40,12 @@ export interface ProgramPage {
   first: boolean;
   last: boolean;
   empty: boolean;
+}
+
+export interface HomeProgramsResponse {
+  freePrograms: ProgramListItem[];
+  urgentPrograms: ProgramListItem[];
+  onlinePrograms: ProgramListItem[];
 }
 
 export interface ApiResponse<T> {
@@ -61,6 +68,12 @@ export const getPrograms = async (
       sort: params.sort,
     },
   });
+
+  return response.data;
+};
+
+export const getHomePrograms = async (): Promise<ApiResponse<HomeProgramsResponse>> => {
+  const response = await client.get<ApiResponse<HomeProgramsResponse>>('/programs/home');
 
   return response.data;
 };
