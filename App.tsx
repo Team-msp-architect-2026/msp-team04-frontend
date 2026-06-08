@@ -126,7 +126,7 @@ export default function App() {
   const [applyInitialFilter, setApplyInitialFilter] = useState<string>('all');
 
 useEffect(() => {
-  fetch('http://192.168.0.18:8080/v3/api-docs')
+  fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/v3/api-docs`)
     .then((res) => {
       console.log('백엔드 응답 상태:', res.status);
 
@@ -230,6 +230,8 @@ useEffect(() => {
   const handleLoginSuccess = async () => {
   const accessToken = await tokenStorage.getAccessToken();
   const refreshToken = await tokenStorage.getRefreshToken();
+
+
 
   if (!accessToken) {
     console.warn('카카오 로그인 후 저장된 accessToken이 없습니다.');
@@ -388,6 +390,10 @@ useEffect(() => {
               onSearchClick={() => setCurrentScreen('search')}
               onUrgentMoreClick={() => {
       setApplyInitialFilter('urgent');
+      setCurrentScreen('apply');
+    }}
+    onOnlineMoreClick={() => {          // 추가
+      setApplyInitialFilter('online');
       setCurrentScreen('apply');
     }}
     onProgramClick={(program) => {

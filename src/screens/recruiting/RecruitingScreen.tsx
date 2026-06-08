@@ -233,6 +233,15 @@ function getUrgency(program: ProgramListItem): RecruitingProgram['urgency'] {
   return 'normal';
 }
 
+function decodeHtml(str: string): string {
+  return str
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
 function toRecruitingProgram(program: ProgramListItem): RecruitingProgram {
   const categoryLabel = getCategoryLabel(program.category);
   const capacity = program.maxCapacity ?? 0;
@@ -243,7 +252,7 @@ function toRecruitingProgram(program: ProgramListItem): RecruitingProgram {
 
   return {
     id: program.id,
-    title: program.name,
+    title: decodeHtml(program.name),
     organization: program.region ? `${program.region} 운영기관` : '운영기관 확인 필요',
     type,
     category: categoryLabel,
@@ -324,6 +333,11 @@ export default function RecruitingScreen({
   const [likedPrograms, setLikedPrograms] = useState<number[]>([]);
   const [bookmarkLoadingIds, setBookmarkLoadingIds] = useState<number[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  useEffect(() => {
+  if (initialFilter) {
+    setActiveFilter((initialFilter as FilterKey) ?? 'all');
+  }
+}, [initialFilter]);
   const [programs, setPrograms] = useState<RecruitingProgram[]>([]);
   const [programLoading, setProgramLoading] = useState(false);
   const [programErrorMessage, setProgramErrorMessage] = useState('');
@@ -363,6 +377,9 @@ export default function RecruitingScreen({
           page: 0,
           size: 50,
         });
+
+        console.log('프로그램 첫번째 데이터:', JSON.stringify(response.data.content[0], null, 2));
+        console.log('deadlineDate 샘플:', response.data.content.slice(0, 5).map(p => ({ id: p.id, name: p.name, deadlineDate: p.deadlineDate })));
 
         if (!cancelled) {
           setPrograms(response.data.content.map(toRecruitingProgram));

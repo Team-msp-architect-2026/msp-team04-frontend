@@ -37,43 +37,57 @@ interface HomeScreenProps {
   onSearchClick?: () => void;
   onNotificationClick?: () => void;
   onUrgentMoreClick?: () => void;
+  onOnlineMoreClick?: () => void;
   onProgramClick?: (program: ProgramDetail) => void;
 }
  
+// ─────────────────────────────────────────────
+// 커뮤니티 카테고리 스타일 (CommunityScreen 동일)
+// ─────────────────────────────────────────────
+const COMMUNITY_PALETTE = {
+  muted: '#94A3B8',
+  coralDark: '#B85A52',
+  primarySoft: '#FFF9E8',
+  primaryBorder: '#F3E3A3',
+  primaryDark: '#8A6400',
+  greenSoft: '#F2FBF6',
+  greenBorder: '#D5F0DE',
+  greenDark: '#228251',
+  blueSoft: '#F3F7FF',
+  blueBorder: '#DCE7FF',
+  blueDark: '#3E6DCC',
+  purpleSoft: '#F5F3FF',
+  purpleBorder: '#E4DFFF',
+  purpleDark: '#5F52C8',
+  coralSoft: '#FFF7F5',
+  coralBorder: '#F4DAD5',
+};
+ 
+type CategoryKey = 'education' | 'care' | 'review' | 'info' | 'question';
+ 
+const CATEGORY_STYLES: Record<CategoryKey, { bg: string; border: string; text: string; label: string }> = {
+  education: { bg: COMMUNITY_PALETTE.primarySoft, border: COMMUNITY_PALETTE.primaryBorder, text: COMMUNITY_PALETTE.primaryDark, label: '교육' },
+  care:      { bg: COMMUNITY_PALETTE.greenSoft,   border: COMMUNITY_PALETTE.greenBorder,   text: COMMUNITY_PALETTE.greenDark,   label: '돌봄' },
+  review:    { bg: COMMUNITY_PALETTE.purpleSoft,  border: COMMUNITY_PALETTE.purpleBorder,  text: COMMUNITY_PALETTE.purpleDark,  label: '후기' },
+  info:      { bg: COMMUNITY_PALETTE.blueSoft,    border: COMMUNITY_PALETTE.blueBorder,    text: COMMUNITY_PALETTE.blueDark,    label: '정보공유' },
+  question:  { bg: COMMUNITY_PALETTE.coralSoft,   border: COMMUNITY_PALETTE.coralBorder,   text: COMMUNITY_PALETTE.coralDark,   label: '질문' },
+};
+ 
 const communityPosts = [
-  { id: 1, title: '7세 아이 수학 학원 고민이에요', comments: 23, likes: 45, category: '교육' },
-  { id: 2, title: '맞벌이인데 방과후 돌봄 어떻게 하세요?', comments: 31, likes: 67, category: '돌봄' },
-  { id: 3, title: '우리 동네 추천 영어 학원 공유해요', comments: 18, likes: 52, category: '교육' },
+  { id: 1, category: 'education' as CategoryKey, title: '7세 아이 수학 학원 고민이에요',        comments: 23, likes: 45 },
+  { id: 2, category: 'care'      as CategoryKey, title: '맞벌이인데 방과후 돌봄 어떻게 하세요?', comments: 31, likes: 67 },
+  { id: 3, category: 'education' as CategoryKey, title: '우리 동네 추천 영어 학원 공유해요',     comments: 18, likes: 52 },
 ];
  
 const supportBenefits = [
-  {
-    id: 1,
-    icon: '👵🏻',
-    iconBg: '#FFF1E8',
-    title: '서울시 조부모 돌봄수당',
-    tag: '신청 가능',
-  },
-  {
-    id: 2,
-    icon: '🏠',
-    iconBg: '#EAFBF3',
-    title: '아이돌봄 정부지원',
-    tag: '신청 가능',
-  },
-  {
-    id: 3,
-    icon: '💡',
-    iconBg: '#FFF4D8',
-    title: '유아 문화체험 무료수업',
-    tag: '무료',
-  },
+  { id: 1, image: require('../../../assets/yellow_grandmother.png'), title: '서울시 조부모 돌봄수당', tag: '신청 가능' },
+  { id: 2, image: require('../../../assets/yellow_house.png'),       title: '아이돌봄 정부지원',      tag: '신청 가능' },
+  { id: 3, image: require('../../../assets/yellow_light.png'),       title: '유아 문화체험 무료수업', tag: '무료' },
 ];
  
 // ─────────────────────────────────────────────
 // 이미지 컴포넌트
 // ─────────────────────────────────────────────
- 
 function ChildImagePlaceholder({ size = 50 }: { size?: number }) {
   return (
     <Image
@@ -114,12 +128,24 @@ function ApplyImage() {
 }
  
 // ─────────────────────────────────────────────
+// HTML 엔티티 디코딩
+// ─────────────────────────────────────────────
+function decodeHtml(str: string): string {
+  return str
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+ 
+// ─────────────────────────────────────────────
 // API 데이터 → ProgramDetail 변환
 // ─────────────────────────────────────────────
 function toProgramDetail(p: any): ProgramDetail {
   return {
     id: p.id,
-    title: p.name,
+    title: decodeHtml(p.name),
     organization: p.region ? `${p.region} 운영기관` : '운영기관 확인 필요',
     type: p.classType === 'ONLINE' ? 'online' : (p.isFree || p.price === 0) ? 'public' : 'private',
     location: p.region ?? '지역 확인 필요',
@@ -134,7 +160,7 @@ function toProgramDetail(p: any): ProgramDetail {
     score: 80,
     isOpen: p.isRecruiting ?? true,
     tags: [p.category ?? '기타', p.isFree ? '무료' : '유료'],
-    description: `${p.name} 프로그램입니다.`,
+    description: `${decodeHtml(p.name)} 프로그램입니다.`,
     curriculum: ['프로그램 소개', '참여 활동', '마무리 및 피드백'],
     contact: '문의처 확인 필요',
     capacity: p.maxCapacity ?? 0,
@@ -158,32 +184,27 @@ export default function HomeScreen({
   onSearchClick, onNotificationClick,
   onAiReportClick,
   onUrgentMoreClick,
+  onOnlineMoreClick,
   onProgramClick,
 }: HomeScreenProps) {
  
-  // ── API 데이터 상태 ──
-const [freeList, setFreeList] = useState<any[]>([]);
-const [urgentList, setUrgentList] = useState<any[]>([]);
-const [onlineList, setOnlineList] = useState<any[]>([]);
+  const [freeList, setFreeList] = useState<any[]>([]);
+  const [urgentList, setUrgentList] = useState<any[]>([]);
+  const [onlineList, setOnlineList] = useState<any[]>([]);
  
   useEffect(() => {
-  getHomePrograms()
-    .then((res) => {
-      const data = res.data;
- 
-      console.log('홈 프로그램 응답:', data);
-      console.log('무료 프로그램 개수:', data?.freePrograms?.length);
-      console.log('마감 임박 프로그램 개수:', data?.urgentPrograms?.length);
-      console.log('온라인 프로그램 개수:', data?.onlinePrograms?.length);
- 
-      setFreeList(data?.freePrograms ?? []);
-      setUrgentList(data?.urgentPrograms ?? []);
-      setOnlineList(data?.onlinePrograms ?? []);
-    })
-    .catch((e) => {
-      console.error('홈 프로그램 조회 실패:', e);
-    });
-}, []);
+    getHomePrograms()
+      .then((res) => {
+        const data = res.data;
+        console.log('홈 프로그램 응답:', data);
+        setFreeList(data?.freePrograms ?? []);
+        setUrgentList(data?.urgentPrograms ?? []);
+        setOnlineList(data?.onlinePrograms ?? []);
+      })
+      .catch((e) => {
+        console.error('홈 프로그램 조회 실패:', e);
+      });
+  }, []);
  
   return (
     <View style={styles.container}>
@@ -197,7 +218,6 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
       />
  
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
- 
  
         {/* ══ 미등록 상태 ══ */}
         {!hasChildInfo ? (
@@ -230,7 +250,6 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
             </TouchableOpacity>
           </>
         ) : (
-          /* ══ 등록 완료 상태 ══ */
           <>
             <View style={styles.greetingRow}>
               <Text style={styles.greeting}>{userName}님, 반가워요!</Text>
@@ -272,15 +291,11 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
           </>
         )}
  
-        {/* ════════════════════════════════════════
-            ▼ 흰색 메인 섹션 시작
-        ════════════════════════════════════════ */}
         <View style={styles.mainSection}>
  
-          {/* ── AI 분석 3-그리드 (등록 완료 시만 표시) ── */}
+          {/* ── AI 분석 3-그리드 ── */}
           {childInfo && (
             <View style={styles.mainGrid}>
-              {/* 왼쪽 큰 카드 */}
               <TouchableOpacity style={styles.bigCard} onPress={onAiReportClick} activeOpacity={0.85}>
                 <LinearGradient
                   colors={['#e6f5ff', '#FFFFFF']}
@@ -300,7 +315,6 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
                 </LinearGradient>
               </TouchableOpacity>
  
-              {/* 오른쪽 작은 카드 2개 */}
               <View style={styles.smallCol}>
                 <TouchableOpacity style={styles.smallCard} onPress={onRecommendClick} activeOpacity={0.85}>
                   <Text style={styles.smallCardTitle}>맞춤 추천</Text>
@@ -319,16 +333,11 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>이런 서비스도 있어요</Text>
             </View>
- 
             <View style={styles.serviceRow}>
               {[
-                { image: require('../../../assets/map-pin.png'),  label: '내 주변\n찾기',       action: onMapClick },
-                { image: require('../../../assets/wallet.png'),   label: '지원금\n확인',        action: onSupportClick },
-                {
-                  image: require('../../../assets/post-it.png'),
-                  label: '무료·공공\n프로그램',
-                  action: () => onTabChange('apply')
-                },
+                { image: require('../../../assets/map-pin.png'),  label: '내 주변\n찾기',      action: onMapClick },
+                { image: require('../../../assets/wallet.png'),   label: '지원금\n확인',       action: onSupportClick },
+                { image: require('../../../assets/post-it.png'),  label: '무료·공공\n프로그램', action: () => onTabChange('apply') },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.label}
@@ -357,16 +366,11 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
               {supportBenefits.map((b, index) => (
                 <TouchableOpacity
                   key={b.id}
-                  style={[
-                    styles.benefitRow,
-                    index !== supportBenefits.length - 1 && styles.benefitRowBorder,
-                  ]}
+                  style={[styles.benefitRow, index !== supportBenefits.length - 1 && styles.benefitRowBorder]}
                   onPress={onSupportClick}
                   activeOpacity={0.75}
                 >
-                  <View style={[styles.benefitIconBox, { backgroundColor: b.iconBg }]}>
-                    <Text style={styles.benefitIcon}>{b.icon}</Text>
-                  </View>
+                  <Image source={b.image} style={styles.benefitIconImg} resizeMode="contain" />
                   <Text style={styles.benefitTitle}>{b.title}</Text>
                   <View style={styles.benefitTag}>
                     <Text style={styles.benefitTagText}>{b.tag}</Text>
@@ -377,7 +381,7 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
             </View>
           </View>
  
-          {/* ── 무료·공공 프로그램 (API 데이터) ── */}
+          {/* ── 무료·공공 프로그램 ── */}
           <View style={styles.whiteBlock}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
@@ -401,7 +405,7 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
                     ) : (
                       <Image source={require('../../../assets/default-program.png')} style={styles.programImg} resizeMode="cover" />
                     )}
-                    <Text style={styles.programTitle} numberOfLines={2}>{p.name}</Text>
+                    <Text style={styles.programTitle} numberOfLines={2}>{decodeHtml(p.name)}</Text>
                     <Text style={styles.programLoc}>{p.region} · 무료</Text>
                   </TouchableOpacity>
                 ))
@@ -424,45 +428,22 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
             {hasChildInfo && childInfo ? (
               <View style={styles.aiTopListCard}>
                 {[
-                  {
-                    id: 1,
-                    emoji: '🏆',
-                    iconBg: '#FFF4D8',
-                    title: '창의 코딩 클래스',
-                    reason: '또래 아이들에게 인기 있는 STEM 프로그램',
-                  },
-                  {
-                    id: 2,
-                    emoji: '🥈',
-                    iconBg: '#EEF3FF',
-                    title: '발레 & 체육 통합반',
-                    reason: '신체·정서 발달에 도움이 되는 활동',
-                  },
-                  {
-                    id: 3,
-                    emoji: '🥉',
-                    iconBg: '#FFF1E8',
-                    title: '영어 스토리텔링',
-                    reason: '언어 발달 시기에 맞는 영어 프로그램',
-                  },
+                  { id: 1, rank: '1', iconBg: '#FFFBEB', rankColor: '#FFD93D', title: '창의 코딩 클래스',   reason: '또래 아이들에게 인기 있는 STEM 프로그램' },
+                  { id: 2, rank: '2', iconBg: '#F3F4F6', rankColor: '#6B7280', title: '발레 & 체육 통합반', reason: '신체·정서 발달에 도움이 되는 활동' },
+                  { id: 3, rank: '3', iconBg: '#F3F4F6', rankColor: '#6B7280', title: '영어 스토리텔링',     reason: '언어 발달 시기에 맞는 영어 프로그램' },
                 ].map((item, index) => (
                   <TouchableOpacity
                     key={item.id}
-                    style={[
-                      styles.aiTopRow,
-                      index !== 2 && styles.aiTopRowBorder,
-                    ]}
+                    style={[styles.aiTopRow, index !== 2 && styles.aiTopRowBorder]}
                     onPress={onRecommendClick}
                     activeOpacity={0.75}
                   >
                     <View style={[styles.aiTopIconBox, { backgroundColor: item.iconBg }]}>
-                      <Text style={styles.aiTopEmoji}>{item.emoji}</Text>
+                      <Text style={[styles.aiTopRank, { color: item.rankColor }]}>{item.rank}</Text>
                     </View>
                     <View style={styles.aiTopTextBox}>
                       <Text style={styles.aiTopTitle}>{item.title}</Text>
-                      <Text style={styles.aiTopSub} numberOfLines={1}>
-                        {item.reason}
-                      </Text>
+                      <Text style={styles.aiTopSub} numberOfLines={1}>{item.reason}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={18} color="#B8C0C8" />
                   </TouchableOpacity>
@@ -479,7 +460,7 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
             )}
           </View>
  
-          {/* ── 오늘 마감 임박 (API 데이터) ── */}
+          {/* ── 마감 임박 프로그램 ── */}
           <View style={styles.whiteBlock}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
@@ -506,7 +487,7 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
                     <View style={styles.urgentBadge}>
                       <Text style={styles.urgentBadgeText}>모집중</Text>
                     </View>
-                    <Text style={styles.programTitle} numberOfLines={2}>{p.name}</Text>
+                    <Text style={styles.programTitle} numberOfLines={2}>{decodeHtml(p.name)}</Text>
                     <Text style={styles.programLoc}>{p.region} · {p.category}</Text>
                   </TouchableOpacity>
                 ))
@@ -516,13 +497,13 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
             </ScrollView>
           </View>
  
-          {/* ── 온라인 프로그램 (API 데이터) ── */}
+          {/* ── 온라인 프로그램 ── */}
           <View style={styles.whiteBlock}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
                 <Text style={styles.sectionTitle}>온라인 프로그램</Text>
               </View>
-              <TouchableOpacity onPress={() => onTabChange('apply')}>
+              <TouchableOpacity onPress={onOnlineMoreClick ?? (() => onTabChange('apply'))}>
                 <Text style={styles.moreText}>더보기</Text>
               </TouchableOpacity>
             </View>
@@ -540,18 +521,12 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
                     ) : (
                       <Image source={require('../../../assets/default-program.png')} style={styles.programImg} resizeMode="cover" />
                     )}
-                    <Text style={styles.programTitle} numberOfLines={2}>
-                      {p.name}
-                    </Text>
-                    <Text style={styles.programLoc}>
-                      {p.region ?? '온라인'} · 온라인
-                    </Text>
+                    <Text style={styles.programTitle} numberOfLines={2}>{decodeHtml(p.name)}</Text>
+                    <Text style={styles.programLoc}>{p.region ?? '온라인'} · 온라인</Text>
                   </TouchableOpacity>
                 ))
               ) : (
-                <Text style={{ color: '#bbb', fontSize: 13, paddingVertical: 12 }}>
-                  온라인 프로그램이 없습니다.
-                </Text>
+                <Text style={{ color: '#bbb', fontSize: 13, paddingVertical: 12 }}>온라인 프로그램이 없습니다.</Text>
               )}
             </ScrollView>
           </View>
@@ -564,24 +539,41 @@ const [onlineList, setOnlineList] = useState<any[]>([]);
                 <Text style={styles.moreText}>더보기</Text>
               </TouchableOpacity>
             </View>
-            {communityPosts.map((post) => (
-              <TouchableOpacity key={post.id} style={styles.listCard}>
-                <View style={styles.postCat}>
-                  <Text style={styles.postCatText}>{post.category}</Text>
-                </View>
-                <Text style={[styles.listTitle, { flex: 1 }]} numberOfLines={1}>{post.title}</Text>
-                <View style={styles.postStats}>
-                  <Text style={styles.postStat}>💬 {post.comments}</Text>
-                  <Text style={styles.postStat}>❤️ {post.likes}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {communityPosts.map((post) => {
+              const catStyle = CATEGORY_STYLES[post.category];
+              return (
+                <TouchableOpacity
+                  key={post.id}
+                  style={styles.listCard}
+                  onPress={() => onTabChange('community')}
+                  activeOpacity={0.8}
+                >
+                  {/* 카테고리 배지 — 커뮤니티 스타일 동일 */}
+                  <View style={[styles.postCat, { backgroundColor: catStyle.bg, borderColor: catStyle.border }]}>
+                    <Text style={[styles.postCatText, { color: catStyle.text }]}>{catStyle.label}</Text>
+                  </View>
+ 
+                  <Text style={[styles.listTitle, { flex: 1 }]} numberOfLines={1}>{post.title}</Text>
+ 
+                  {/* 좋아요/댓글 — 커뮤니티 스타일 동일 */}
+                  <View style={styles.postStats}>
+                    <View style={styles.postStatItem}>
+                      <Ionicons name="heart-outline" size={13} color={COMMUNITY_PALETTE.muted} />
+                      <Text style={styles.postStatText}>{post.likes}</Text>
+                    </View>
+                    <View style={styles.postStatItem}>
+                      <Ionicons name="chatbubble-outline" size={12} color={COMMUNITY_PALETTE.muted} />
+                      <Text style={styles.postStatText}>{post.comments}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
  
           <View style={{ height: 40 }} />
  
         </View>
-        {/* ▲ mainSection 끝 */}
  
       </ScrollView>
  
@@ -625,8 +617,8 @@ const styles = StyleSheet.create({
   registerSub:      { fontSize: 11.5, color: '#aaa', marginTop: 1 },
  
   greetingRow:      { marginTop: 4, marginBottom: 12 },
-  greeting:         { fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
-  subGreeting:      { fontSize: 12, color: '#999', marginTop: 2 },
+  greeting:         { fontSize: 22, fontWeight: '800', color: '#1a1a1a' },
+  subGreeting:      { fontSize: 14, color: '#999', marginTop: 4 },
  
   childCard:        { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, padding: 12, marginBottom: 14, ...SHADOW },
   childNameRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 },
@@ -636,33 +628,12 @@ const styles = StyleSheet.create({
   concernChip:      { backgroundColor: '#F7F8FA', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 2, borderWidth: 1, borderColor: '#E5E7EB' },
   concernText:      { fontSize: 11, color: '#666' },
  
-  mainSection: {
-    backgroundColor: '#fff',
-    marginHorizontal: -16,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 0,
-  },
- 
-  grayBlock: {
-    backgroundColor: '#fff',
-    paddingTop: 24,
-    paddingBottom: 8,
-  },
- 
-  whiteBlock: {
-    backgroundColor: '#fff',
-    paddingTop: 24,
-    paddingBottom: 8,
-  },
- 
-  serviceSection: {
-    marginTop: 32,
-    marginBottom: 8,
-  },
+  mainSection:      { backgroundColor: '#fff', marginHorizontal: -16, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 0 },
+  grayBlock:        { backgroundColor: '#fff', paddingTop: 24, paddingBottom: 8 },
+  whiteBlock:       { backgroundColor: '#fff', paddingTop: 24, paddingBottom: 8 },
+  serviceSection:   { marginTop: 32, marginBottom: 8 },
  
   mainGrid:         { flexDirection: 'row', gap: 10, height: 220 },
- 
   bigCard:          { flex: 1.15, borderRadius: 18, overflow: 'hidden', ...SHADOW },
   bigCardGradient:  { flex: 1, borderRadius: 18, padding: 16, position: 'relative' },
   bigCardTextArea:  { position: 'absolute', top: 16, left: 16, width: 120, zIndex: 2 },
@@ -685,54 +656,18 @@ const styles = StyleSheet.create({
  
   sectionHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   sectionTitleRow:  { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  sectionTitle:     { fontSize: 15, fontWeight: '700', color: '#1a1a1a' },
-  moreText:         { fontSize: 12, color: '#bbb' },
+  sectionTitle:     { fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
+  moreText:         { fontSize: 14, color: '#bbb' },
  
-  benefitListCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    overflow: 'hidden',
-    marginBottom: 4,
-    ...SHADOW,
-  },
-  benefitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    gap: 10,
-  },
-  benefitRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F1F3',
-  },
-  benefitIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  benefitIcon: {
-    fontSize: 21,
-  },
-  benefitTitle: {
-    flex: 1,
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  benefitTag: {
-    backgroundColor: '#FFD93D',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  benefitTagText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#191919',
-  },
+  benefitListCard:  { backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', marginBottom: 4, ...SHADOW },
+  benefitRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, gap: 10 },
+  benefitRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F0F1F3' },
+  benefitIconBox:   { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  benefitIcon:      { fontSize: 21 },
+  benefitIconImg:   { width: 42, height: 42 },
+  benefitTitle:     { flex: 1, fontSize: 13.5, fontWeight: '600', color: '#1a1a1a' },
+  benefitTag:       { backgroundColor: '#FFD93D', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  benefitTagText:   { fontSize: 10.5, fontWeight: '800', color: '#191919' },
  
   hScroll:          { marginHorizontal: -16, paddingLeft: 16 },
   programCard:      { width: 148, marginRight: 10, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', ...SHADOW },
@@ -742,62 +677,33 @@ const styles = StyleSheet.create({
   urgentBadge:      { position: 'absolute', top: 8, left: 8, backgroundColor: '#FA8C16', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
   urgentBadgeText:  { fontSize: 10, color: '#fff', fontWeight: '700' },
  
-  aiTopListCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    overflow: 'hidden',
-    marginBottom: 4,
-    ...SHADOW,
-  },
-  aiTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    gap: 10,
-  },
-  aiTopRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F1F3',
-  },
-  aiTopIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiTopEmoji: {
-    fontSize: 21,
-  },
-  aiTopTextBox: {
-    flex: 1,
-  },
-  aiTopTitle: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  aiTopSub: {
-    fontSize: 11,
-    color: '#B5B5B5',
-    marginTop: 3,
-  },
+  aiTopListCard:    { backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', marginBottom: 4, ...SHADOW },
+  aiTopRow:         { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, gap: 10 },
+  aiTopRowBorder:   { borderBottomWidth: 1, borderBottomColor: '#F0F1F3' },
+  aiTopIconBox:     { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  aiTopRank:        { fontSize: 20, fontWeight: '900' },
+  aiTopEmoji:       { fontSize: 21 },
+  aiTopTextBox:     { flex: 1 },
+  aiTopTitle:       { fontSize: 13.5, fontWeight: '700', color: '#1a1a1a' },
+  aiTopSub:         { fontSize: 11, color: '#B5B5B5', marginTop: 3 },
  
+  // ── 커뮤니티 인기글 카드 ──
   listCard:         { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 14, padding: 12, marginBottom: 8, ...SHADOW },
-  listEmoji:        { fontSize: 20, width: 30, textAlign: 'center' },
   listTitle:        { fontSize: 13, fontWeight: '600', color: '#1a1a1a' },
-  listSub:          { fontSize: 11, color: '#bbb', marginTop: 2 },
+ 
+  // 카테고리 배지 — 커뮤니티 스타일 통일
+  postCat:          { height: 24, paddingHorizontal: 9, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  postCatText:      { fontSize: 10, fontWeight: '900', letterSpacing: -0.1 },
+ 
+  // 좋아요/댓글 — 커뮤니티 스타일 통일
+  postStats:        { flexDirection: 'row', gap: 8 },
+  postStatItem:     { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  postStatText:     { fontSize: 11, fontWeight: '800', color: '#94A3B8' },
  
   emptyBox:         { backgroundColor: '#FFFBEB', borderRadius: 16, padding: 20, alignItems: 'center', gap: 8 },
   emptyTitle:       { fontSize: 13, fontWeight: '600', color: '#1a1a1a' },
   emptyBtn:         { backgroundColor: '#FFD93D', borderRadius: 20, paddingHorizontal: 20, paddingVertical: 8, marginTop: 4 },
   emptyBtnText:     { fontSize: 12, fontWeight: '700', color: '#1a1a1a' },
- 
-  postCat:          { backgroundColor: '#EAF6FF', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  postCatText:      { fontSize: 10, fontWeight: '700', color: '#2a6fa8' },
-  postStats:        { flexDirection: 'row', gap: 8 },
-  postStat:         { fontSize: 11, color: '#bbb' },
  
   bottomTab:        { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee' },
   tabItem:          { flex: 1, alignItems: 'center', paddingTop: 10, paddingBottom: 4, gap: 2 },
