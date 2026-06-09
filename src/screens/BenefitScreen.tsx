@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, StatusBar, Image, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
+import { fetchBenefitMatches, recalculateBenefits } from '../api/benefit';
+import type { BenefitMatch } from '../api/benefit';
+import { fetchChildren } from '../api/child';
+ 
 // ─────────────────────────────────────────────
 // 타입
 // ─────────────────────────────────────────────
 type MatchStatus = 'APPLICABLE' | 'CONDITION_CHECK' | 'FREE' | 'NOT_ELIGIBLE';
 type FilterTab = 'all' | 'applicable' | 'condition';
-
+ 
 interface Condition {
   id: number;
   icon: string;
@@ -19,7 +22,7 @@ interface Condition {
   label: string;
   status: 'met' | 'required' | 'pending';
 }
-
+ 
 interface BenefitItem {
   id: number;
   icon: string;
@@ -28,32 +31,23 @@ interface BenefitItem {
   type: string;
   monthlyAmount: number;
   status: MatchStatus;
-  // for detail view
   description?: string;
   deadline?: string;
   targets?: string[];
   documents?: string[];
   steps?: string[];
-  // for condition view
   conditions?: Condition[];
   conditionNote?: string;
   extraInputs?: { id: number; label: string; sub: string }[];
   yearlyMax?: number;
 }
-
-interface MissedBenefit {
-  id: number;
-  icon: string;
-  iconBg: string;
-  title: string;
-  sub: string;
-}
-
+ 
 interface BenefitScreenProps {
   userName?: string;
   childName?: string;
   childAge?: number;
   childRegion?: string;
+  childId?: number;
   hasChildInfo?: boolean;
   onBack?: () => void;
   onRegisterChild?: () => void;
@@ -63,106 +57,43 @@ interface BenefitScreenProps {
   onGoNotificationSettings?: () => void;
   onGoMap?: () => void;
 }
-
+ 
 // ─────────────────────────────────────────────
-// 더미 데이터
+// 매핑 유틸
 // ─────────────────────────────────────────────
-const BENEFITS: BenefitItem[] = [
-  {
-    id: 1,
-    icon: '👵🏻',
-    iconBg: '#FFF1E8',
-    title: '서울시 조부모 돌봄수당',
-    type: '지원금',
-    monthlyAmount: 300000,
-    status: 'APPLICABLE',
-    description: '서울시 거주 조부모가 손자녀를 직접 돌보는 경우 지원하는 수당이에요.',
+function getBenefitVisual(type: string): { icon: string; iconBg: string } {
+  switch (type) {
+    case '바우처':        return { icon: '🏠', iconBg: '#EAFBF3' };
+    case '교육비':        return { icon: '📚', iconBg: '#EBF4FF' };
+    case '무료 프로그램': return { icon: '🎨', iconBg: '#F0FFF4' };
+    case '지원금':
+    default:              return { icon: '👵🏻', iconBg: '#FFF1E8' };
+  }
+}
+ 
+function toBenefitItem(match: BenefitMatch): BenefitItem {
+  const { icon, iconBg } = getBenefitVisual(match.benefitType);
+  return {
+    id: match.matchId,
+    icon,
+    iconBg,
+    title: match.benefitName,
+    type: match.benefitType,
+    monthlyAmount: match.expectedMonthlySaving,
+    status: match.matchStatus as MatchStatus,
+    description: match.supportDescription,
     deadline: '상시',
-    targets: [
-      '서울시에 주민등록을 둔 조부모 또는 4촌 이내 친인척',
-      '만 24개월 이상 ~ 만 36개월 이하 아동을 돌보는 경우',
-      '월 40시간 이상 돌봄을 제공하는 경우',
-      '아동과 동일 세대 또는 가까운 이웃에 거주하는 경우',
-    ],
-    documents: [
-      '주민등록동본 (조부모 기준)',
-      '가족관계증명서',
-      '돌봄활동 확인서 (양식 제공)',
-      '신분증 사본 (조부모 기준)',
-    ],
-    steps: ['온라인 신청서 작성', '서류 제출', '심사 후 지원금 지급'],
-  },
-  {
-    id: 2,
-    icon: '🏠',
-    iconBg: '#EAFBF3',
-    title: '아이돌봄서비스 정부지원',
-    type: '바우처',
-    monthlyAmount: 200000,
-    status: 'APPLICABLE',
-    description: '맞벌이 가정 등 양육 공백 가정의 아이를 전문 돌봄 선생님이 방문해 돌봐드려요.',
-    deadline: '상시',
-    targets: [
-      '만 12세 이하 아동을 양육하는 가정',
-      '맞벌이, 한부모, 장애부모 가정 우선 지원',
-      '소득 기준에 따라 지원 비율 상이',
-    ],
-    documents: ['신청서', '가족관계증명서', '소득 증빙 서류'],
-    steps: ['온라인 신청', '서비스 이용권 발급', '돌봄 매칭'],
-  },
-  {
-    id: 3,
-    icon: '📚',
-    iconBg: '#EBF4FF',
-    title: '교육비 지원 바우처',
-    type: '교육비',
-    monthlyAmount: 100000,
-    status: 'CONDITION_CHECK',
-    description: '아이의 학원·교육 프로그램 비용을 정부가 지원해드려요.',
-    deadline: '상시',
-    conditions: [
-      { id: 1, icon: '👨‍👩‍👧', iconBg: '#FFF4D8', label: '자녀 나이 조건 (만 7세 이하)', status: 'met' },
-      { id: 2, icon: '🏠', iconBg: '#EAFBF3', label: '거주지 정보 등록', status: 'met' },
-      { id: 3, icon: '💳', iconBg: '#EBF4FF', label: '소득 분위 확인', status: 'required' },
-      { id: 4, icon: '🏫', iconBg: '#F5F5F5', label: '교육기관 등록 여부', status: 'pending' },
-    ],
-    conditionNote: '1개 조건만 더 확인하면\n신청할 수 있어요.',
-    extraInputs: [
-      { id: 1, label: '건강보험료 납부 내역', sub: '소득 분위 산정에 필요해요.' },
-      { id: 2, label: '환급 계좌 정보 등록', sub: '바우처 지급을 빠르게 받을 수 있어요.' },
-    ],
-  },
-  {
-    id: 4,
-    icon: '🎨',
-    iconBg: '#F0FFF4',
-    title: '유아 문화체험 무료수업',
-    type: '무료 프로그램',
-    monthlyAmount: 40000,
-    status: 'FREE',
-    description: '서울시 유아를 위한 문화예술 체험 프로그램을 무료로 제공해요.',
-    deadline: '2025.06.30',
-    targets: ['만 3세~7세 유아', '서울시 거주 가정'],
-    documents: ['신청서', '아동 등본'],
-    steps: ['온라인 신청', '대기 후 배정', '수업 참여'],
-  },
-];
-
-const MISSED_BENEFITS: MissedBenefit[] = [
-  { id: 1, icon: '🏫', iconBg: '#EBF4FF', title: '방과후학교 자유수강권', sub: '초등학생 대상 · 지역 교육청 신청' },
-  { id: 2, icon: '🏘️', iconBg: '#EAFBF3', title: '다함께돌봄센터 이용 지원', sub: '지역 설정 시 확인 가능' },
-  { id: 3, icon: '🎒', iconBg: '#FFF4D8', title: '지역아동센터 이용 지원', sub: '연령·소득 조건 확인 필요' },
-];
-
-
-
+  };
+}
+ 
 // ─────────────────────────────────────────────
 // 유틸
 // ─────────────────────────────────────────────
-function formatAmount(n: number) {
+function formatAmount(n: number | null | undefined) {
+  if (n == null) return '0';
   return n.toLocaleString('ko-KR');
 }
-
+ 
 function statusLabel(s: MatchStatus) {
   switch (s) {
     case 'APPLICABLE':      return '신청 가능';
@@ -171,7 +102,7 @@ function statusLabel(s: MatchStatus) {
     case 'NOT_ELIGIBLE':    return '조건 미충족';
   }
 }
-
+ 
 function statusStyle(s: MatchStatus) {
   switch (s) {
     case 'APPLICABLE':      return { bg: '#FFD93D', text: '#191919' };
@@ -180,7 +111,7 @@ function statusStyle(s: MatchStatus) {
     case 'NOT_ELIGIBLE':    return { bg: '#E5E7EB', text: '#6B7280' };
   }
 }
-
+ 
 function conditionIcon(s: Condition['status']) {
   switch (s) {
     case 'met':      return { name: 'checkmark-circle' as const, color: '#22C55E', label: '충족', bg: '#DCFCE7' };
@@ -188,7 +119,7 @@ function conditionIcon(s: Condition['status']) {
     case 'pending':  return { name: 'time' as const,             color: '#3B82F6', label: '확인 필요', bg: '#DBEAFE' };
   }
 }
-
+ 
 // ─────────────────────────────────────────────
 // 서브뷰 — 혜택 신청 상세
 // ─────────────────────────────────────────────
@@ -203,7 +134,7 @@ function BenefitDetailView({
 }) {
   const insets = useSafeAreaInsets();
   const [openSections, setOpenSections] = useState<Set<number>>(new Set([0, 2]));
-
+ 
   function toggleSection(idx: number) {
     setOpenSections((prev) => {
       const next = new Set(prev);
@@ -211,7 +142,7 @@ function BenefitDetailView({
       return next;
     });
   }
-
+ 
   const sections = [
     {
       label: '지원 대상',
@@ -233,14 +164,12 @@ function BenefitDetailView({
       steps: benefit.steps ?? [],
     },
   ];
-
+ 
   const { bg, text } = statusStyle(benefit.status);
-
+ 
   return (
     <View style={[dStyles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      {/* 헤더 */}
       <View style={dStyles.header}>
         <TouchableOpacity onPress={onBack} style={dStyles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#222" />
@@ -251,10 +180,8 @@ function BenefitDetailView({
           <View style={dStyles.notiBadge} />
         </TouchableOpacity>
       </View>
-
+ 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={dStyles.scroll}>
-
-        {/* 요약 카드 */}
         <View style={dStyles.summaryCard}>
           <View style={dStyles.summaryTop}>
             <View style={[dStyles.summaryIconBox, { backgroundColor: benefit.iconBg }]}>
@@ -271,9 +198,7 @@ function BenefitDetailView({
           <View style={dStyles.summaryRow}>
             <Ionicons name="cash-outline" size={16} color="#FFB020" />
             <Text style={dStyles.summaryLabel}>예상 월 절감액</Text>
-            <Text style={dStyles.summaryValue}>
-              {formatAmount(benefit.monthlyAmount)}원
-            </Text>
+            <Text style={dStyles.summaryValue}>{formatAmount(benefit.monthlyAmount)}원</Text>
           </View>
           <View style={dStyles.summaryRow}>
             <Ionicons name="pricetag-outline" size={16} color="#888" />
@@ -286,8 +211,7 @@ function BenefitDetailView({
             <Text style={dStyles.summaryValueDark}>{benefit.deadline ?? '상시'}</Text>
           </View>
         </View>
-
-        {/* 아코디언 섹션들 */}
+ 
         {sections.map((sec, idx) => (
           <View key={idx} style={dStyles.accordionCard}>
             <TouchableOpacity
@@ -335,8 +259,7 @@ function BenefitDetailView({
             )}
           </View>
         ))}
-
-        {/* 온라인 신청 안내 배너 */}
+ 
         <View style={dStyles.infoBanner}>
           <Text style={dStyles.infoBannerEmoji}>💡</Text>
           <View>
@@ -344,21 +267,19 @@ function BenefitDetailView({
             <Text style={dStyles.infoBannerSub}>제출 서류는 스캔 또는 사진으로 업로드하면 돼요.</Text>
           </View>
         </View>
-
-        {/* CTA */}
+ 
         <TouchableOpacity style={dStyles.ctaBtn} activeOpacity={0.85}>
           <Text style={dStyles.ctaBtnText}>신청하러 가기</Text>
         </TouchableOpacity>
         <TouchableOpacity style={dStyles.secondaryBtn} activeOpacity={0.85}>
           <Text style={dStyles.secondaryBtnText}>나중에 보기</Text>
         </TouchableOpacity>
-
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
-
+ 
 // ─────────────────────────────────────────────
 // 서브뷰 — 조건 확인
 // ─────────────────────────────────────────────
@@ -373,12 +294,10 @@ function BenefitConditionView({
   const metCount = (benefit.conditions ?? []).filter((c) => c.status === 'met').length;
   const totalCount = (benefit.conditions ?? []).length;
   const remainCount = totalCount - metCount;
-
+ 
   return (
     <View style={[cStyles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      {/* 헤더 */}
       <View style={cStyles.header}>
         <TouchableOpacity onPress={onBack} style={cStyles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#222" />
@@ -386,10 +305,8 @@ function BenefitConditionView({
         <Text style={cStyles.headerTitle}>조건 확인</Text>
         <View style={{ width: 40 }} />
       </View>
-
+ 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={cStyles.scroll}>
-
-        {/* 요약 카드 */}
         <View style={cStyles.summaryCard}>
           <View style={cStyles.summaryTop}>
             <View style={[cStyles.summaryIconBox, { backgroundColor: benefit.iconBg }]}>
@@ -424,8 +341,7 @@ function BenefitConditionView({
             )}
           </View>
         </View>
-
-        {/* 조건 확인 리스트 */}
+ 
         <Text style={cStyles.sectionTitle}>신청 자격 조건 확인</Text>
         <View style={cStyles.conditionCard}>
           {(benefit.conditions ?? []).map((cond, idx) => {
@@ -452,8 +368,7 @@ function BenefitConditionView({
             );
           })}
         </View>
-
-        {/* 조건 배너 */}
+ 
         {remainCount > 0 && (
           <View style={cStyles.noteBanner}>
             <Image
@@ -466,8 +381,7 @@ function BenefitConditionView({
             </Text>
           </View>
         )}
-
-        {/* 추가 입력 */}
+ 
         {(benefit.extraInputs ?? []).length > 0 && (
           <>
             <Text style={[cStyles.sectionTitle, { marginTop: 24 }]}>추가로 입력하면 좋은 정보</Text>
@@ -493,21 +407,19 @@ function BenefitConditionView({
             </View>
           </>
         )}
-
-        {/* CTA */}
+ 
         <TouchableOpacity style={cStyles.ctaBtn} activeOpacity={0.85}>
           <Text style={cStyles.ctaBtnText}>조건 입력하기</Text>
         </TouchableOpacity>
         <TouchableOpacity style={cStyles.secondaryBtn} activeOpacity={0.85}>
           <Text style={cStyles.secondaryBtnText}>관련 제도 보기</Text>
         </TouchableOpacity>
-
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
-
+ 
 // ─────────────────────────────────────────────
 // 메인 컴포넌트 — BenefitScreen
 // ─────────────────────────────────────────────
@@ -516,21 +428,73 @@ export default function BenefitScreen({
   childName = '서준',
   childAge = 5,
   childRegion = '서울 강동구',
+  childId,
   hasChildInfo = true,
   onBack,
   onRegisterChild,
   onNotificationClick,
   onGoNotificationSettings,
   onGoMap,
-  isLoading = false,
 }: BenefitScreenProps) {
   const insets = useSafeAreaInsets();
-
+ 
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [detailBenefit, setDetailBenefit] = useState<BenefitItem | null>(null);
   const [conditionBenefit, setConditionBenefit] = useState<BenefitItem | null>(null);
-
-  // 서브뷰 분기
+  const [benefits, setBenefits] = useState<BenefitItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+ 
+  const loadBenefits = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+ 
+      const children = await fetchChildren();
+      console.log('BenefitScreen fetchChildren:', JSON.stringify(children));
+      if (children.length === 0) {
+        setError('자녀 정보를 찾을 수 없어요.');
+        return;
+      }
+ 
+      const realChildId = children[0].childId;
+      const matches = await fetchBenefitMatches(realChildId);
+      if (matches.length === 0) {
+        await recalculateBenefits(realChildId);
+        const retried = await fetchBenefitMatches(realChildId);
+        setBenefits(retried.map(toBenefitItem));
+      } else {
+        setBenefits(matches.map(toBenefitItem));
+      }
+    } catch (e) {
+      console.error('혜택 로딩 실패', e);
+      setError('혜택 정보를 불러오지 못했어요.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+ 
+  useEffect(() => {
+    if (!hasChildInfo) return;
+    loadBenefits();
+  }, [hasChildInfo]);
+ 
+  async function handleRecalculate() {
+    try {
+      setLoading(true);
+      const children = await fetchChildren();
+      if (children.length === 0) return;
+      const realChildId = children[0].childId;
+      await recalculateBenefits(realChildId);
+      const matches = await fetchBenefitMatches(realChildId);
+      setBenefits(matches.map(toBenefitItem));
+    } catch (e) {
+      console.error('재계산 실패', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+ 
   if (detailBenefit) {
     return (
       <BenefitDetailView
@@ -548,7 +512,7 @@ export default function BenefitScreen({
       />
     );
   }
-
+ 
   function handleBenefitPress(b: BenefitItem) {
     if (b.status === 'CONDITION_CHECK') {
       setConditionBenefit(b);
@@ -556,31 +520,28 @@ export default function BenefitScreen({
       setDetailBenefit(b);
     }
   }
-
-  // 필터
-  const filteredBenefits = BENEFITS.filter((b) => {
+ 
+  const filteredBenefits = benefits.filter((b) => {
     if (activeTab === 'applicable') return b.status === 'APPLICABLE' || b.status === 'FREE';
     if (activeTab === 'condition') return b.status === 'CONDITION_CHECK';
     return true;
   });
-
-  // 요약
-  const totalMonthly = BENEFITS.reduce((acc, b) => acc + b.monthlyAmount, 0);
-  const applicableCount = BENEFITS.filter(
+ 
+  const totalMonthly = benefits.reduce((acc, b) => acc + b.monthlyAmount, 0);
+  const applicableCount = benefits.filter(
     (b) => b.status === 'APPLICABLE' || b.status === 'FREE',
   ).length;
-
+ 
   const TABS: { key: FilterTab; label: string }[] = [
     { key: 'all', label: '전체' },
     { key: 'applicable', label: '신청 가능' },
     { key: 'condition', label: '조건 확인' },
   ];
-
+ 
   return (
     <View style={[bStyles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      {/* 헤더 */}
+ 
       <View style={bStyles.header}>
         <TouchableOpacity onPress={onBack} style={bStyles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#222" />
@@ -594,14 +555,13 @@ export default function BenefitScreen({
           <View style={bStyles.notiBadge} />
         </TouchableOpacity>
       </View>
-
-      {isLoading ? (
+ 
+      {loading ? (
         <View style={bStyles.loadingBox}>
           <ActivityIndicator size="large" color="#FFD93D" />
           <Text style={bStyles.loadingText}>혜택을 불러오는 중...</Text>
         </View>
       ) : !hasChildInfo ? (
-        /* 아이 정보 없을 때 */
         <View style={bStyles.emptyBox}>
           <Text style={{ fontSize: 48 }}>🤖</Text>
           <Text style={bStyles.emptyTitle}>아이 정보를 먼저 등록해주세요</Text>
@@ -610,10 +570,17 @@ export default function BenefitScreen({
             <Text style={bStyles.emptyBtnText}>아이 정보 등록하기</Text>
           </TouchableOpacity>
         </View>
+      ) : error ? (
+        <View style={bStyles.emptyBox}>
+          <Text style={{ fontSize: 48 }}>😢</Text>
+          <Text style={bStyles.emptyTitle}>{error}</Text>
+          <TouchableOpacity style={bStyles.emptyBtn} onPress={loadBenefits}>
+            <Text style={bStyles.emptyBtnText}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={bStyles.scroll}>
-
-          {/* ── 요약 카드 ── */}
+ 
           <View style={bStyles.summaryCard}>
             <View style={bStyles.summaryLeft}>
               <Image
@@ -647,8 +614,7 @@ export default function BenefitScreen({
               {childName} · {childAge}세 · {childRegion} 기준
             </Text>
           </View>
-
-          {/* ── 필터 탭 ── */}
+ 
           <View style={bStyles.tabRow}>
             {TABS.map((tab) => (
               <TouchableOpacity
@@ -663,8 +629,7 @@ export default function BenefitScreen({
               </TouchableOpacity>
             ))}
           </View>
-
-          {/* ── 받을 수 있는 지원 혜택 ── */}
+ 
           <Text style={bStyles.sectionTitle}>받을 수 있는 지원 혜택</Text>
           <View style={bStyles.benefitListCard}>
             {filteredBenefits.map((b, idx) => {
@@ -708,41 +673,16 @@ export default function BenefitScreen({
               </View>
             )}
           </View>
-
-          {/* ── 놓치고 있는 지원 혜택 ── */}
-          <Text style={[bStyles.sectionTitle, { marginTop: 28 }]}>놓치고 있는 혜택</Text>
-          <View style={bStyles.benefitListCard}>
-            {MISSED_BENEFITS.map((mb, idx) => (
-              <TouchableOpacity
-                key={mb.id}
-                style={[
-                  bStyles.benefitRow,
-                  idx !== MISSED_BENEFITS.length - 1 && bStyles.benefitBorder,
-                ]}
-                activeOpacity={0.75}
-              >
-                <View style={[bStyles.benefitIconBox, { backgroundColor: mb.iconBg }]}>
-                  <Text style={bStyles.benefitIcon}>{mb.icon}</Text>
-                </View>
-                <View style={bStyles.benefitTextWrap}>
-                  <Text style={bStyles.benefitTitle}>{mb.title}</Text>
-                  <Text style={bStyles.missedSub}>{mb.sub}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#B8C0C8" />
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* ── 혜택 활용 팁 ── */}
+ 
           <Text style={[bStyles.sectionTitle, { marginTop: 28 }]}>혜택 활용 팁</Text>
           <TouchableOpacity style={bStyles.tipCard} onPress={onGoMap} activeOpacity={0.85}>
-  <Text style={bStyles.tipEmoji}>🎁</Text>
-  <View style={{ flex: 1 }}>
-    <Text style={bStyles.tipTitle}>내 주변 무료 프로그램을{'\n'}찾아보세요</Text>
-    <Text style={bStyles.tipSub}>가까운 곳에 무료로 이용할 수 있는{'\n'}프로그램이 있을 수 있어요.</Text>
-  </View>
-  <Ionicons name="chevron-forward" size={18} color="#B8C0C8" />
-</TouchableOpacity>
+            <Text style={bStyles.tipEmoji}>🎁</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={bStyles.tipTitle}>내 주변 무료 프로그램을{'\n'}찾아보세요</Text>
+              <Text style={bStyles.tipSub}>가까운 곳에 무료로 이용할 수 있는{'\n'}프로그램이 있을 수 있어요.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#B8C0C8" />
+          </TouchableOpacity>
           <TouchableOpacity style={[bStyles.tipCard, bStyles.tipCardBlue]} onPress={onGoNotificationSettings} activeOpacity={0.85}>
             <Text style={bStyles.tipEmoji}>🔔</Text>
             <View style={{ flex: 1 }}>
@@ -751,8 +691,7 @@ export default function BenefitScreen({
             </View>
             <Ionicons name="chevron-forward" size={18} color="#B8C0C8" />
           </TouchableOpacity>
-
-          {/* ── 재계산 유도 카드 ── */}
+ 
           <View style={bStyles.recalcCard}>
             <Image
               source={require('../../assets/moment-splash.png')}
@@ -763,18 +702,18 @@ export default function BenefitScreen({
               <Text style={bStyles.recalcTitle}>아이 정보가 바뀌면{'\n'}혜택도 다시 계산돼요</Text>
               <Text style={bStyles.recalcSub}>생년월일, 거주지, 가구구성 등이 바뀌면{'\n'}받을 수 있는 혜택이 달라질 수 있어요</Text>
             </View>
-            <TouchableOpacity style={bStyles.recalcBtn}>
+            <TouchableOpacity style={bStyles.recalcBtn} onPress={onRegisterChild}>
               <Text style={bStyles.recalcBtnText}>다시 계산하기</Text>
             </TouchableOpacity>
           </View>
-
+ 
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
     </View>
   );
 }
-
+ 
 // ─────────────────────────────────────────────
 // 공통 그림자
 // ─────────────────────────────────────────────
@@ -785,15 +724,13 @@ const SHADOW = {
   shadowOffset: { width: 0, height: 2 },
   elevation: 3,
 };
-
+ 
 // ─────────────────────────────────────────────
 // BenefitScreen 스타일
 // ─────────────────────────────────────────────
 const bStyles = StyleSheet.create({
   container:    { flex: 1, backgroundColor: '#fff' },
   scroll:       { paddingHorizontal: 16, paddingTop: 8 },
-
-  /* 헤더 */
   header:       { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', gap: 4 },
   backBtn:      { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1 },
@@ -801,8 +738,6 @@ const bStyles = StyleSheet.create({
   headerSub:    { fontSize: 12, color: '#999', marginTop: 2 },
   bellBtn:      { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   notiBadge:    { position: 'absolute', top: 8, right: 8, width: 7, height: 7, borderRadius: 4, backgroundColor: '#f87171', borderWidth: 2, borderColor: '#fff' },
-
-  /* 로딩 / 빈 상태 */
   loadingBox:   { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText:  { fontSize: 13, color: '#bbb' },
   emptyBox:     { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 32 },
@@ -810,8 +745,6 @@ const bStyles = StyleSheet.create({
   emptySub:     { fontSize: 12.5, color: '#aaa', textAlign: 'center', lineHeight: 20 },
   emptyBtn:     { backgroundColor: '#FFD93D', borderRadius: 24, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8 },
   emptyBtnText: { fontSize: 14, fontWeight: '700', color: '#1a1a1a' },
-
-  /* 요약 카드 */
   summaryCard:        { borderRadius: 18, borderWidth: 1.5, borderColor: '#FFD93D', padding: 18, flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', ...SHADOW },
   summaryLeft:        { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   childAvatar:        { width: 52, height: 52, borderRadius: 26 },
@@ -823,22 +756,15 @@ const bStyles = StyleSheet.create({
   summaryDivider:     { width: 1, height: 50, backgroundColor: '#F0F0F0', marginHorizontal: 14 },
   summaryRight:       { alignItems: 'center', justifyContent: 'center' },
   summaryPiggy:       { fontSize: 42 },
-
   summaryMeta:     { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, marginBottom: 16, paddingLeft: 2 },
   summaryMetaText: { fontSize: 12, color: '#aaa' },
-
-  /* 탭 */
   tabRow:          { flexDirection: 'row', gap: 8, marginBottom: 18 },
   tabBtn:          { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#F4F4F4' },
   tabBtnActive:    { backgroundColor: '#FFD93D' },
   tabBtnText:      { fontSize: 13, fontWeight: '600', color: '#999' },
   tabBtnTextActive: { color: '#191919' },
-
-  /* 섹션 */
   sectionTitle:  { fontSize: 16, fontWeight: '800', color: '#1a1a1a', marginBottom: 12 },
   moreText:      { fontSize: 12, color: '#bbb' },
-
-  /* 혜택 카드 */
   benefitListCard: { backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', ...SHADOW },
   benefitRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14, gap: 10 },
   benefitBorder: { borderBottomWidth: 1, borderBottomColor: '#F0F1F3' },
@@ -852,44 +778,33 @@ const bStyles = StyleSheet.create({
   benefitAmount: { fontSize: 11.5, color: '#BBB' },
   statusBadge:   { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
   statusBadgeText: { fontSize: 11, fontWeight: '800' },
-
-  /* 놓치고 있는 혜택 */
   missedSub:     { fontSize: 11.5, color: '#aaa', marginTop: 2 },
-
-  /* 필터 빈 상태 */
   emptyFilter:   { padding: 20, alignItems: 'center' },
   emptyFilterText: { fontSize: 13, color: '#bbb' },
-
-  /* 팁 카드 */
   tipCard:       { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 16, borderWidth: 1.5, borderColor: '#FFD93D', padding: 14, marginBottom: 10 },
   tipCardBlue:   { borderColor: '#93C5FD' },
   tipEmoji:      { fontSize: 32 },
   tipTitle:      { fontSize: 14, fontWeight: '700', color: '#1a1a1a', lineHeight: 21 },
   tipSub:        { fontSize: 11.5, color: '#999', marginTop: 4, lineHeight: 17 },
-
-  /* 재계산 카드 */
   recalcCard:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFBEB', borderRadius: 18, padding: 14, marginTop: 24 },
   recalcAvatar:  { width: 48, height: 48, borderRadius: 24 },
   recalcTitle:   { fontSize: 13.5, fontWeight: '700', color: '#1a1a1a', lineHeight: 20 },
   recalcSub:     { fontSize: 11, color: '#aaa', marginTop: 4, lineHeight: 16 },
   recalcBtn:     { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#FFD93D', alignSelf: 'flex-start' },
   recalcBtnText: { fontSize: 11.5, fontWeight: '700', color: '#191919' },
-
 });
-
+ 
 // ─────────────────────────────────────────────
 // BenefitDetailView 스타일
 // ─────────────────────────────────────────────
 const dStyles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: '#fff' },
   scroll:          { paddingHorizontal: 16, paddingTop: 8 },
-
   header:          { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff' },
   backBtn:         { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle:     { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
   bellBtn:         { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   notiBadge:       { position: 'absolute', top: 8, right: 8, width: 7, height: 7, borderRadius: 4, backgroundColor: '#f87171', borderWidth: 2, borderColor: '#fff' },
-
   summaryCard:     { borderRadius: 18, borderWidth: 1.5, borderColor: '#FFD93D', padding: 16, marginBottom: 14, backgroundColor: '#fff', ...SHADOW },
   summaryTop:      { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   summaryIconBox:  { width: 60, height: 60, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
@@ -902,7 +817,6 @@ const dStyles = StyleSheet.create({
   summaryLabel:    { flex: 1, fontSize: 13, color: '#888' },
   summaryValue:    { fontSize: 16, fontWeight: '800', color: '#FFB020' },
   summaryValueDark: { fontSize: 13.5, fontWeight: '700', color: '#1a1a1a' },
-
   accordionCard:   { backgroundColor: '#fff', borderRadius: 18, marginBottom: 10, overflow: 'hidden', ...SHADOW },
   accordionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   accordionIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -917,29 +831,25 @@ const dStyles = StyleSheet.create({
   stepCircle:      { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3EEFF', alignItems: 'center', justifyContent: 'center' },
   stepNum:         { fontSize: 14, fontWeight: '700', color: '#8B5CF6' },
   stepLabel:       { fontSize: 11, color: '#555', textAlign: 'center' },
-
   infoBanner:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: '#FFFBEB', borderRadius: 16, padding: 14, marginBottom: 14 },
   infoBannerEmoji: { fontSize: 28 },
   infoBannerTitle: { fontSize: 14, fontWeight: '700', color: '#1a1a1a' },
   infoBannerSub:   { fontSize: 12, color: '#999', marginTop: 4 },
-
   ctaBtn:          { backgroundColor: '#FFA500', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 10 },
   ctaBtnText:      { fontSize: 15, fontWeight: '800', color: '#fff' },
   secondaryBtn:    { borderRadius: 16, borderWidth: 1.5, borderColor: '#FFA500', padding: 15, alignItems: 'center' },
   secondaryBtnText: { fontSize: 15, fontWeight: '700', color: '#FFA500' },
 });
-
+ 
 // ─────────────────────────────────────────────
 // BenefitConditionView 스타일
 // ─────────────────────────────────────────────
 const cStyles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: '#fff' },
   scroll:          { paddingHorizontal: 16, paddingTop: 8 },
-
   header:          { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff' },
   backBtn:         { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle:     { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
-
   summaryCard:     { borderRadius: 18, borderWidth: 1.5, borderColor: '#93C5FD', padding: 16, marginBottom: 24, backgroundColor: '#fff', ...SHADOW },
   summaryTop:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
   summaryIconBox:  { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
@@ -956,7 +866,6 @@ const cStyles = StyleSheet.create({
   yearlyIconWrap:  { width: 38, height: 38, borderRadius: 19, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   yearlyLabel:     { fontSize: 11, color: '#888' },
   yearlyValue:     { fontSize: 14, fontWeight: '700', color: '#1a1a1a' },
-
   sectionTitle:    { fontSize: 16, fontWeight: '800', color: '#1a1a1a', marginBottom: 12 },
   conditionCard:   { backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', marginBottom: 4, ...SHADOW },
   conditionRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14, gap: 10 },
@@ -966,18 +875,15 @@ const cStyles = StyleSheet.create({
   conditionLabel:  { flex: 1, fontSize: 13.5, fontWeight: '600', color: '#1a1a1a' },
   conditionBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
   conditionBadgeText: { fontSize: 11, fontWeight: '700' },
-
   noteBanner:      { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#EFF6FF', borderRadius: 16, padding: 14, marginTop: 14 },
   noteCharacter:   { width: 44, height: 44 },
   noteText:        { fontSize: 14, color: '#1a1a1a', lineHeight: 21 },
   noteHighlight:   { color: '#3B82F6', fontWeight: '800' },
-
   extraRow:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14, gap: 10 },
   extraLabel:      { fontSize: 13.5, fontWeight: '700', color: '#1a1a1a' },
   extraSub:        { fontSize: 11.5, color: '#aaa', marginTop: 2 },
   inputBtn:        { borderRadius: 20, borderWidth: 1, borderColor: '#ddd', paddingHorizontal: 12, paddingVertical: 6 },
   inputBtnText:    { fontSize: 12, fontWeight: '600', color: '#555' },
-
   ctaBtn:          { backgroundColor: '#3B82F6', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 20, marginBottom: 10 },
   ctaBtnText:      { fontSize: 15, fontWeight: '800', color: '#fff' },
   secondaryBtn:    { borderRadius: 16, borderWidth: 1.5, borderColor: '#ddd', padding: 15, alignItems: 'center' },

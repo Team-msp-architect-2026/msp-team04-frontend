@@ -49,6 +49,7 @@ import HelpCenterScreen from './src/screens/mypage/HelpCenterScreen';
 
 import NotificationScreen from './src/screens/notification/NotificationScreen';
 import NotificationSettingsScreen from './src/screens/notification/NotificationSettingsScreen';
+import * as Linking from 'expo-linking';
 
 import SearchScreen from './src/screens/search/SearchScreen';
 
@@ -61,6 +62,8 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
 import BenefitScreen from './src/screens/BenefitScreen';
 import { tokenStorage } from './src/api/tokenStorage';
+import { fetchChildren, registerChild, updateChild } from './src/api/child';
+
 
 
 const DEV_ACCESS_TOKEN = process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN ?? '';
@@ -121,31 +124,54 @@ export default function App() {
 
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
 
-  const [backendStatus, setBackendStatus] = useState('백엔드 연결 확인 중...');
+ 
 
   const [applyInitialFilter, setApplyInitialFilter] = useState<string>('all');
 
 useEffect(() => {
-  fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/v3/api-docs`)
-    .then((res) => {
-      console.log('백엔드 응답 상태:', res.status);
+  const handleDeepLink = async (event: { url: string }) => {
+    const parsed = Linking.parse(event.url);
+    const accessToken = Array.isArray(parsed.queryParams?.accessToken)
+      ? parsed.queryParams.accessToken[0]
+      : parsed.queryParams?.accessToken;
+    const refreshToken = Array.isArray(parsed.queryParams?.refreshToken)
+      ? parsed.queryParams.refreshToken[0]
+      : parsed.queryParams?.refreshToken;
 
-      if (!res.ok) {
-        throw new Error(`HTTP 상태 코드: ${res.status}`);
-      }
+    if (accessToken && refreshToken) {
+  await tokenStorage.setAccessToken(accessToken);
+  await tokenStorage.setRefreshToken(refreshToken);
+  setTokens(accessToken, refreshToken);
 
-      return res.json();
-    })
-    .then((data) => {
-      console.log('백엔드 연결 성공:', data.info?.title);
-      setBackendStatus('백엔드 연결 성공');
-    })
-    .catch((error) => {
-      console.error('백엔드 연결 실패:', error);
-      setBackendStatus('백엔드 연결 실패');
-    });
+  try {
+    const children = await fetchChildren();
+    console.log('딥링크 children 응답:', JSON.stringify(children));
+    if (children.length > 0) {
+      const child = children[0];
+      setChildProfile({
+        id: child.childId,
+        name: child.childName,
+        age: child.age,
+        concerns: child.concerns,
+      });
+    }
+  } catch (e) {
+    console.warn('딥링크 자녀 정보 조회 실패', e);
+  }
+
+  setCurrentScreen('home');
+}
+  };
+
+  const subscription = Linking.addEventListener('url', handleDeepLink);
+
+  // 앱이 종료된 상태에서 딥링크로 열린 경우
+  Linking.getInitialURL().then((url) => {
+    if (url) handleDeepLink({ url });
+  });
+
+  return () => subscription.remove();
 }, []);
-
   const [filterData, setFilterData] = useState<FilterData | null>({
     ageGroup: '',
     region: '강남구',
@@ -207,31 +233,49 @@ useEffect(() => {
   const refreshToken = await tokenStorage.getRefreshToken();
 
   if (accessToken) {
-    setTokens(accessToken, refreshToken ?? '');
+  setTokens(accessToken, refreshToken ?? '');
+  clearChildProfile();
 
-    if (!childProfile) {
-      setCurrentScreen('home');
-    } else {
-      setCurrentScreen('home');
+    try {
+    const children = await fetchChildren();
+    console.log('SplashFinish children 응답:', JSON.stringify(children));
+    if (children.length > 0) {
+      const child = children[0];
+      setChildProfile({
+        id: child.childId,
+        name: child.childName,
+        age: child.age,
+        concerns: child.concerns,
+      });
     }
-
-    return;
+  } catch (e) {
+    console.warn('자녀 정보 조회 실패', e);
   }
+
+  setCurrentScreen('home');
+  return;
+}
 
   if (!isLoggedIn) {
     setCurrentScreen('login');
-  } else if (!childProfile) {
-    setCurrentScreen('home');
   } else {
     setCurrentScreen('home');
   }
 };
 
+const handleDevLogin = () => {
+  if (!DEV_ACCESS_TOKEN) {
+    console.warn(
+      'EXPO_PUBLIC_DEV_ACCESS_TOKEN이 없습니다. 프론트 .env에 로컬 JWT를 넣어주세요.',
+    );
+    return;
+  }
+  setTokens(DEV_ACCESS_TOKEN, '');
+};
+
   const handleLoginSuccess = async () => {
   const accessToken = await tokenStorage.getAccessToken();
   const refreshToken = await tokenStorage.getRefreshToken();
-
-
 
   if (!accessToken) {
     console.warn('카카오 로그인 후 저장된 accessToken이 없습니다.');
@@ -240,19 +284,25 @@ useEffect(() => {
   }
 
   setTokens(accessToken, refreshToken ?? '');
+
+  try {
+    const children = await fetchChildren();
+    console.log('children 응답:', JSON.stringify(children));
+    if (children.length > 0) {
+      const child = children[0];
+      setChildProfile({
+        id: child.childId,
+        name: child.childName,
+        age: child.age,
+        concerns: child.concerns,
+      });
+    }
+  } catch (e) {
+    console.warn('자녀 정보 조회 실패', e);
+  }
+
   setCurrentScreen('home');
 };
-
-  const handleDevLogin = () => {
-    if (!DEV_ACCESS_TOKEN) {
-      console.warn(
-        'EXPO_PUBLIC_DEV_ACCESS_TOKEN이 없습니다. 프론트 .env에 로컬 JWT를 넣어주세요.',
-      );
-      return;
-    }
-
-    setTokens(DEV_ACCESS_TOKEN, '');
-  };
 
   const handleReset = () => {
     logout();
@@ -300,7 +350,7 @@ useEffect(() => {
     <ErrorBoundary>
       <SafeAreaProvider>
         <View style={styles.root}>
-        <Text style={styles.backendStatus}>{backendStatus}</Text>
+        
           {false && (
           <View style={styles.devPanel}>
             <TouchableOpacity
@@ -351,15 +401,42 @@ useEffect(() => {
           {currentScreen === 'child' && (
             <ChildInputScreen
               onBack={() => setCurrentScreen('login')}
-              onComplete={(data) => {
-                setChildProfile({
-                  id: 1,
-                  name: data.childName,
-                  age: data.age,
-                  concerns: data.concerns,
-                });
-                setCurrentScreen('home');
-              }}
+              onComplete={async (data) => {
+  try {
+    const birthDate = `${new Date().getFullYear() - data.age}-01-01`;
+    
+    if (childProfile?.id) {
+      // 기존 자녀 수정
+      const updated = await updateChild(childProfile.id, {
+        childName: data.childName,
+        birthDate,
+        concerns: data.concerns,
+      });
+      setChildProfile({
+        id: updated.childId,
+        name: updated.childName,
+        age: updated.age,
+        concerns: updated.concerns,
+      });
+    } else {
+      // 신규 등록
+      const created = await registerChild({
+        childName: data.childName,
+        birthDate,
+        concerns: data.concerns,
+      });
+      setChildProfile({
+        id: created.childId,
+        name: created.childName,
+        age: created.age,
+        concerns: created.concerns,
+      });
+    }
+  } catch (e) {
+    console.error('자녀 등록/수정 실패', e);
+  }
+  setCurrentScreen('home');
+}}
             />
           )}
 
@@ -822,26 +899,30 @@ useEffect(() => {
           )}
 
           {currentScreen === 'help' && (
-            <HelpCenterScreen onBack={() => setCurrentScreen('my')} />
-          )}
+  <HelpCenterScreen onBack={() => setCurrentScreen('my')} />
+)}
 
-          {currentScreen === 'benefit' && (
-            <BenefitScreen
-              userName="정아름"
-              childName={childProfile?.name}
-              childAge={childProfile?.age}
-              childRegion="서울 강동구"
-              hasChildInfo={!!childProfile}
-              onBack={() => setCurrentScreen('home')}
-              onRegisterChild={() => setCurrentScreen('child')}
-              onNotificationClick={() => setCurrentScreen('notification')}
-              onGoRecommendation={() => setCurrentScreen('recommendation')}
-              onGoNotificationSettings={() =>
-                setCurrentScreen('notificationSettings')
-              }
-              onGoMap={() => setCurrentScreen('map')}
-            />
-          )}
+{currentScreen === 'benefit' && (() => {
+  console.log('childProfile:', JSON.stringify(childProfile));
+  return (
+    <BenefitScreen
+      userName="정아름"
+      childName={childProfile?.name}
+      childAge={childProfile?.age}
+      childId={childProfile?.id}
+      childRegion="서울 강동구"
+      hasChildInfo={!!childProfile}
+      onBack={() => setCurrentScreen('home')}
+      onRegisterChild={() => setCurrentScreen('child')}
+      onNotificationClick={() => setCurrentScreen('notification')}
+      onGoRecommendation={() => setCurrentScreen('recommendation')}
+      onGoNotificationSettings={() =>
+        setCurrentScreen('notificationSettings')
+      }
+      onGoMap={() => setCurrentScreen('map')}
+    />
+  );
+})()}
         </View>
       </SafeAreaProvider>
     </ErrorBoundary>
