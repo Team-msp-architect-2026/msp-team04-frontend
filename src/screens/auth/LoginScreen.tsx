@@ -29,33 +29,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     console.log('앱 복귀 URL:', appReturnUrl);
     console.log('카카오 인증 URL:', authUrl);
 
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, appReturnUrl);
-    console.log('카카오 로그인 결과:', result);
+    // WebBrowser 대신 기본 브라우저로 열기
+    await Linking.openURL(authUrl);
 
-    if (result.type === 'success' && result.url) {
-      const parsedUrl = Linking.parse(result.url);
-
-      const accessTokenParam = parsedUrl.queryParams?.accessToken;
-      const refreshTokenParam = parsedUrl.queryParams?.refreshToken;
-
-      const accessToken = Array.isArray(accessTokenParam)
-        ? accessTokenParam[0]
-        : accessTokenParam;
-
-      const refreshToken = Array.isArray(refreshTokenParam)
-        ? refreshTokenParam[0]
-        : refreshTokenParam;
-
-      if (!accessToken || !refreshToken) {
-        console.error('토큰을 받지 못했어요.', result.url);
-        return;
-      }
-
-      await tokenStorage.setAccessToken(accessToken);
-      await tokenStorage.setRefreshToken(refreshToken);
-
-      onLoginSuccess();
-    }
   } catch (e) {
     console.error('카카오 로그인 실패', e);
   }
