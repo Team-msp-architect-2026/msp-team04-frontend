@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   View,
@@ -203,9 +203,13 @@ export default function SearchScreen({
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [resultTotal, setResultTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [recentLoading, setRecentLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const loadingMoreRef = useRef(false);
 
   const trimmedQuery = query.trim();
   const aiSuggestionKeywords =
@@ -255,7 +259,9 @@ export default function SearchScreen({
     }
 
     try {
+      loadingMoreRef.current = false;
       setLoading(true);
+      setLoadingMore(false);
       setErrorMessage('');
       setQuery(normalizedQuery);
       setSearched(true);
@@ -268,14 +274,61 @@ export default function SearchScreen({
 
       setResults(mappedResults);
       setResultTotal(page.totalElements);
+      setCurrentPage(page.number);
+      setTotalPages(page.totalPages);
       await loadRecentSearches();
     } catch (error) {
       console.warn('검색 실패:', error);
       setResults([]);
       setResultTotal(0);
+      setCurrentPage(0);
+      setTotalPages(0);
       setErrorMessage('검색 결과를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreResults = async () => {
+    const normalizedQuery = query.trim();
+    const nextPage = currentPage + 1;
+
+    if (
+      !searched ||
+      loading ||
+      loadingMoreRef.current ||
+      !normalizedQuery ||
+      totalPages === 0 ||
+      nextPage >= totalPages
+    ) {
+      return;
+    }
+
+    try {
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+      setErrorMessage('');
+
+      const page = await searchApi.searchPrograms(normalizedQuery, nextPage, 10);
+      const mappedResults = page.content.map(item =>
+        mapSearchItemToProgramDetail(item, normalizedQuery),
+      );
+
+      setResults(prevResults => {
+        const existingIds = new Set(prevResults.map(item => item.id));
+        const nextResults = mappedResults.filter(item => !existingIds.has(item.id));
+
+        return [...prevResults, ...nextResults];
+      });
+      setResultTotal(page.totalElements);
+      setCurrentPage(page.number);
+      setTotalPages(page.totalPages);
+    } catch (error) {
+      console.warn('추가 검색 결과 조회 실패:', error);
+      setErrorMessage('추가 검색 결과를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
   };
 
@@ -410,6 +463,16 @@ export default function SearchScreen({
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={400}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const isNearBottom =
+            layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
+
+          if (isNearBottom) {
+            loadMoreResults();
+          }
+        }}
       >
         {!searched ? (
           <View style={styles.readyContent}>
@@ -525,8 +588,9 @@ export default function SearchScreen({
                 <Text style={styles.loadingText}>검색 결과 불러오는 중</Text>
               </View>
             ) : results.length > 0 ? (
-              <View style={styles.resultList}>
-                {results.map(program => (
+              <>
+                <View style={styles.resultList}>
+                  {results.map(program => (
                   <TouchableOpacity
                     key={program.id}
                     style={styles.resultCard}
@@ -575,8 +639,16 @@ export default function SearchScreen({
                       </View>
                     </View>
                   </TouchableOpacity>
-                ))}
-              </View>
+                  ))}
+                </View>
+
+                {loadingMore && (
+                  <View style={styles.loadingMoreRow}>
+                    <ActivityIndicator size="small" color="#1479B8" />
+                    <Text style={styles.loadingText}>검색 결과 더 불러오는 중</Text>
+                  </View>
+                )}
+              </>
             ) : (
               <View style={styles.emptyResult}>
                 <Ionicons name="search-outline" size={32} color="#CBD5E1" />
@@ -1007,6 +1079,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#374151',
+  },
+
+  loadingMoreRow: {
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
 
   emptyResult: {
