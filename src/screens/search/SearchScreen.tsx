@@ -42,11 +42,10 @@ const FALLBACK_AI_SUGGESTIONS = [
 
 const QUICK_CONDITIONS = [
   '무료 프로그램',
-  '주말 수업',
-  '집 근처',
-  '소규모 수업',
-  '3~5세',
+  '소규모',
   '공공기관',
+  '주말 프로그램',
+  '놀이',
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
