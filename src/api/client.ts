@@ -29,6 +29,8 @@ const processQueue = (error: unknown, token: string | null) => {
 client.interceptors.request.use(async (config) => {
   const token = await tokenStorage.getAccessToken();
 
+  console.log('ACCESS_TOKEN_FOR_SWAGGER:', token);
+
   console.log(
     'API 요청:',
     config.method?.toUpperCase(),

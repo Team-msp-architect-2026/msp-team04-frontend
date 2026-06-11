@@ -50,6 +50,8 @@ export interface PreferenceRequest {
   moveTime: MoveTimeCode;
   onlinePreference: OnlinePreferenceCode;
   classType: ClassTypeCode;
+  concerns: string[];
+  subjectDetails: string[];
 }
 
 export interface SavePreferenceResponse {
@@ -193,18 +195,21 @@ export function buildPreferenceRequest(
   }
 
   return {
-    childId,
-    region: filterData.region,
-    monthlyBudget: requireMappedValue('예산', filterData.budget, monthlyBudgetMap),
-    transportType: requireMappedValue('이동수단', filterData.travelMode, transportTypeMap),
-    moveTime: requireMappedValue('이동시간', filterData.travelTime, moveTimeMap),
-    onlinePreference: requireMappedValue(
-      '온라인 선호도',
-      filterData.onlineOption,
-      onlinePreferenceMap,
-    ),
-    classType: requireMappedValue('수업 형태', filterData.classType, classTypeMap),
-  };
+  childId,
+  region: filterData.region,
+  monthlyBudget: requireMappedValue('예산', filterData.budget, monthlyBudgetMap),
+  transportType: requireMappedValue('이동수단', filterData.travelMode, transportTypeMap),
+  moveTime: requireMappedValue('이동시간', filterData.travelTime, moveTimeMap),
+  onlinePreference: requireMappedValue(
+    '온라인 선호도',
+    filterData.onlineOption,
+    onlinePreferenceMap,
+  ),
+  classType: requireMappedValue('수업 형태', filterData.classType, classTypeMap),
+
+  concerns: filterData.concerns,
+  subjectDetails: filterData.subjectDetails,
+};
 }
 
 export const recommendationApi = {

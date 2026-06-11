@@ -37,7 +37,7 @@ interface Program {
   reviewCount: number;
   ageRange: string;
   schedule: string;
-  imageUrl: string;
+  imageUrl: string | null;
   matchRate: number;
   isOpen: boolean;
   tags: string[];
@@ -62,7 +62,8 @@ const mockPrograms: Program[] = [
     reviewCount: 124,
     ageRange: '5-9세',
     schedule: '평일 14:00-18:00',
-    imageUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=400&h=300&fit=crop',
+    imageUrl:
+      'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=400&h=300&fit=crop',
     matchRate: 97,
     isOpen: true,
     tags: ['돌봄', '창의력'],
@@ -83,7 +84,8 @@ const mockPrograms: Program[] = [
     reviewCount: 89,
     ageRange: '6-10세',
     schedule: '화/목 16:00-17:30',
-    imageUrl: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=300&fit=crop',
+    imageUrl:
+      'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=300&fit=crop',
     matchRate: 91,
     isOpen: true,
     tags: ['영어', '회화'],
@@ -104,7 +106,8 @@ const mockPrograms: Program[] = [
     reviewCount: 256,
     ageRange: '7-12세',
     schedule: '자유 수강',
-    imageUrl: 'https://images.unsplash.com/photo-1587620962725-abab7fe55159?w=400&h=300&fit=crop',
+    imageUrl:
+      'https://images.unsplash.com/photo-1587620962725-abab7fe55159?w=400&h=300&fit=crop',
     matchRate: 87,
     isOpen: true,
     tags: ['코딩', 'SW교육'],
@@ -125,7 +128,8 @@ const mockPrograms: Program[] = [
     reviewCount: 1024,
     ageRange: '3-12세',
     schedule: '협의 가능',
-    imageUrl: 'https://images.unsplash.com/photo-1544717297-fa95b6ee9643?w=400&h=300&fit=crop',
+    imageUrl:
+      'https://images.unsplash.com/photo-1544717297-fa95b6ee9643?w=400&h=300&fit=crop',
     matchRate: 83,
     isOpen: true,
     tags: ['돌봄', '정부지원'],
@@ -145,7 +149,8 @@ const mockPrograms: Program[] = [
     reviewCount: 67,
     ageRange: '6-12세',
     schedule: '평일 13:00-19:00',
-    imageUrl: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=400&h=300&fit=crop',
+    imageUrl:
+      'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=400&h=300&fit=crop',
     matchRate: 79,
     isOpen: false,
     tags: ['돌봄', '학습지원'],
@@ -154,8 +159,9 @@ const mockPrograms: Program[] = [
   },
 ];
 
-const FALLBACK_IMAGE_URL =
-  'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=400&h=300&fit=crop';
+const hasProgramImage = (imageUrl?: string | null) => {
+  return !!imageUrl && imageUrl.trim().length > 0;
+};
 
 function formatRecommendationPrice(price: number, isFree: boolean) {
   if (isFree || price === 0) {
@@ -183,7 +189,7 @@ function toRecommendationProgram(item: RecommendationItem): Program {
     reviewCount: 0,
     ageRange: '대상 연령 확인 필요',
     schedule: item.classType ?? '운영 방식 확인 필요',
-    imageUrl: item.imageUrl ?? FALLBACK_IMAGE_URL,
+    imageUrl: item.imageUrl?.trim() ? item.imageUrl.trim() : null,
     matchRate,
     isOpen: item.isRecruiting,
     tags: [item.category, item.isTop3 ? 'TOP3' : '맞춤추천'].filter(Boolean),
@@ -194,7 +200,6 @@ function toRecommendationProgram(item: RecommendationItem): Program {
   };
 }
 
-// Program → ProgramDetail 변환 함수
 function toProgramDetail(p: Program): ProgramDetail {
   return {
     id: p.id,
@@ -251,14 +256,15 @@ export default function RecommendationScreen({
   const [activeTab, setActiveTab] = useState<'top3' | 'all'>('top3');
   const [likedPrograms, setLikedPrograms] = useState<number[]>([]);
   const [top3CompareSummary, setTop3CompareSummary] = useState('');
-  const [top3CompareItems, setTop3CompareItems] = useState<
-    Top3CompareItem[]
-  >([]);
+  const [top3CompareItems, setTop3CompareItems] = useState<Top3CompareItem[]>(
+    [],
+  );
 
   const programs =
     recommendations.length > 0
       ? recommendations.map(toRecommendationProgram)
       : mockPrograms;
+
   const top3 = programs.filter(program => program.isTop3).slice(0, 3);
   const displayTop3 = top3.length > 0 ? top3 : programs.slice(0, 3);
 
@@ -301,18 +307,33 @@ export default function RecommendationScreen({
   const getCompareItem = (programId: number) =>
     top3CompareItems.find(item => item.programId === programId);
 
+  const getCompareReason = (compareItem?: Top3CompareItem) => {
+    if (!compareItem) {
+      return '';
+    }
+
+    const item = compareItem as Top3CompareItem & {
+      oneLineReason?: string;
+      reason?: string;
+    };
+
+    return item.reason ?? item.oneLineReason ?? '';
+  };
+
   const toggleLike = (id: number) => {
     setLikedPrograms(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id],
     );
   };
 
-  const rankEmoji = (idx: number) => idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
-  const rankBg = (idx: number) => idx === 0 ? '#FFD700' : idx === 1 ? '#C0C0C0' : '#CD7F32';
+  const rankEmoji = (idx: number) =>
+    idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+
+  const rankBg = (idx: number) =>
+    idx === 0 ? '#FFD700' : idx === 1 ? '#C0C0C0' : '#CD7F32';
 
   return (
     <SafeAreaView style={s.root}>
-      {/* 헤더 */}
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={onBack}>
           <Text style={s.backBtnText}>←</Text>
@@ -323,39 +344,65 @@ export default function RecommendationScreen({
         </TouchableOpacity>
       </View>
 
-      {/* AI 배너 */}
       <View style={s.aiBanner}>
         <View style={s.aiBannerLeft}>
           <Text style={s.aiStar}>✦</Text>
-          <Text style={s.aiText}>{childData.childName}에게 딱 맞는 프로그램 {programs.length}개를 찾았어요!</Text>
+          <Text style={s.aiText}>
+            {childData.childName}에게 딱 맞는 프로그램 {programs.length}개를
+            찾았어요!
+          </Text>
         </View>
         <View style={s.aiBadge}>
           <Text style={s.aiBadgeText}>✦ 95%</Text>
         </View>
       </View>
 
-      {/* 아이 정보 칩 */}
       <View style={s.filterRow}>
         <View style={s.chips}>
-          <View style={s.chip}><Text style={s.chipText}>{childData.childName} ({childData.age}세)</Text></View>
-          {childData.region && <View style={s.chipGray}><Text style={s.chipGrayText}>{childData.region}</Text></View>}
-          {childData.budget && <View style={s.chipGray}><Text style={s.chipGrayText}>{childData.budget}</Text></View>}
+          <View style={s.chip}>
+            <Text style={s.chipText}>
+              {childData.childName} ({childData.age}세)
+            </Text>
+          </View>
+          {childData.region && (
+            <View style={s.chipGray}>
+              <Text style={s.chipGrayText}>{childData.region}</Text>
+            </View>
+          )}
+          {childData.budget && (
+            <View style={s.chipGray}>
+              <Text style={s.chipGrayText}>{childData.budget}</Text>
+            </View>
+          )}
         </View>
       </View>
 
-      {/* 탭 */}
       <View style={s.tabRow}>
         <TouchableOpacity
           style={[s.tabBtn, activeTab === 'top3' && s.tabBtnActive]}
           onPress={() => setActiveTab('top3')}
         >
-          <Text style={[s.tabBtnText, activeTab === 'top3' && s.tabBtnTextActive]}>✦ AI TOP 3</Text>
+          <Text
+            style={[
+              s.tabBtnText,
+              activeTab === 'top3' && s.tabBtnTextActive,
+            ]}
+          >
+            ✦ AI TOP 3
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.tabBtn, activeTab === 'all' && s.tabBtnActive]}
           onPress={() => setActiveTab('all')}
         >
-          <Text style={[s.tabBtnText, activeTab === 'all' && s.tabBtnTextActive]}>전체 결과</Text>
+          <Text
+            style={[
+              s.tabBtnText,
+              activeTab === 'all' && s.tabBtnTextActive,
+            ]}
+          >
+            전체 결과
+          </Text>
         </TouchableOpacity>
         <Text style={s.totalCount}>총 {programs.length}개</Text>
       </View>
@@ -373,10 +420,8 @@ export default function RecommendationScreen({
           </View>
         )}
 
-        {/* TOP3 탭 */}
         {activeTab === 'top3' && (
           <View style={{ gap: 16 }}>
-            {/* AI 비교 배너 */}
             <View style={s.compareBox}>
               <View style={s.compareHeader}>
                 <Text style={s.aiStar}>✦</Text>
@@ -398,10 +443,14 @@ export default function RecommendationScreen({
                   return (
                     <View key={p.id} style={s.compareItem}>
                       <Text style={s.compareRank}>#{idx + 1}</Text>
-                      <Text style={s.compareTitle2}>{p.title.slice(0, 6)}...</Text>
+                      <Text style={s.compareTitle2}>
+                        {p.title.slice(0, 6)}...
+                      </Text>
                       <Text style={s.compareRate}>{p.matchRate}%</Text>
                       {compareItem?.highlightTag ? (
-                        <Text style={s.compareTag}>{compareItem.highlightTag}</Text>
+                        <Text style={s.compareTag}>
+                          {compareItem.highlightTag}
+                        </Text>
                       ) : null}
                     </View>
                   );
@@ -412,15 +461,21 @@ export default function RecommendationScreen({
                 <View style={s.compareReasonList}>
                   {displayTop3.map(program => {
                     const compareItem = getCompareItem(program.id);
+                    const reason = getCompareReason(compareItem);
 
-                    if (!compareItem?.reason) {
+                    if (!reason) {
                       return null;
                     }
 
                     return (
-                      <View key={`reason-${program.id}`} style={s.compareReasonItem}>
-                        <Text style={s.compareReasonTitle}>{program.title}</Text>
-                        <Text style={s.compareReasonText}>{compareItem.reason}</Text>
+                      <View
+                        key={`reason-${program.id}`}
+                        style={s.compareReasonItem}
+                      >
+                        <Text style={s.compareReasonTitle}>
+                          {program.title}
+                        </Text>
+                        <Text style={s.compareReasonText}>{reason}</Text>
                       </View>
                     );
                   })}
@@ -428,25 +483,43 @@ export default function RecommendationScreen({
               )}
             </View>
 
-            {/* TOP3 카드 */}
             {displayTop3.map((program, idx) => (
               <View key={program.id} style={s.card}>
                 <View style={s.cardImageWrap}>
-                  <Image
-                    source={{ uri: program.imageUrl }}
-                    style={s.cardImage}
-                    resizeMode="cover"
-                  />
+                  {hasProgramImage(program.imageUrl) ? (
+                    <Image
+  source={{ uri: program.imageUrl ?? undefined }}
+  style={s.cardImage}
+  resizeMode="cover"
+/>
+                  ) : (
+                    <View style={[s.cardImage, s.noImageBox]}>
+                      <Text style={s.noImageIcon}>✦</Text>
+                      <Text style={s.noImageText}>이미지 없음</Text>
+                    </View>
+                  )}
+
                   <View style={s.cardBadgeRow}>
-                    <View style={[s.rankBadge, { backgroundColor: rankBg(idx) }]}>
-                      <Text style={s.rankBadgeText}>{rankEmoji(idx)} {idx + 1}위</Text>
+                    <View
+                      style={[s.rankBadge, { backgroundColor: rankBg(idx) }]}
+                    >
+                      <Text style={s.rankBadgeText}>
+                        {rankEmoji(idx)} {idx + 1}위
+                      </Text>
                     </View>
                     <View style={s.aiBadgeSmall}>
-                      <Text style={s.aiBadgeSmallText}>✦ {program.matchRate}%</Text>
+                      <Text style={s.aiBadgeSmallText}>
+                        ✦ {program.matchRate}%
+                      </Text>
                     </View>
                   </View>
-                  <TouchableOpacity style={s.likeBtn} onPress={() => toggleLike(program.id)}>
-                    <Text>{likedPrograms.includes(program.id) ? '❤️' : '🤍'}</Text>
+                  <TouchableOpacity
+                    style={s.likeBtn}
+                    onPress={() => toggleLike(program.id)}
+                  >
+                    <Text>
+                      {likedPrograms.includes(program.id) ? '❤️' : '🤍'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
@@ -454,17 +527,23 @@ export default function RecommendationScreen({
                   <View style={s.cardTopRow}>
                     <View>
                       <View style={s.categoryBadge}>
-                        <Text style={s.categoryBadgeText}>{program.category}</Text>
+                        <Text style={s.categoryBadgeText}>
+                          {program.category}
+                        </Text>
                       </View>
                       <Text style={s.cardTitle}>{program.title}</Text>
-                      <Text style={s.cardLocation}>📍 {program.location}</Text>
+                      <Text style={s.cardLocation}>
+                        📍 {program.location}
+                      </Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={s.cardPrice}>{program.price}</Text>
                       <View style={s.ratingRow}>
                         <Text style={{ fontSize: 11 }}>⭐</Text>
                         <Text style={s.ratingText}>{program.rating}</Text>
-                        <Text style={s.reviewCount}>({program.reviewCount})</Text>
+                        <Text style={s.reviewCount}>
+                          ({program.reviewCount})
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -486,14 +565,20 @@ export default function RecommendationScreen({
                   )}
                 </View>
 
-                {/* ← 상세보기 버튼에 onProgramClick 연결 */}
                 <View style={s.cardFooter}>
                   <TouchableOpacity
-                    style={[s.detailBtn, !program.isOpen && s.detailBtnDisabled]}
+                    style={[
+                      s.detailBtn,
+                      !program.isOpen && s.detailBtnDisabled,
+                    ]}
                     disabled={!program.isOpen}
-                    onPress={() => program.isOpen && onProgramClick(toProgramDetail(program))}
+                    onPress={() =>
+                      program.isOpen && onProgramClick(toProgramDetail(program))
+                    }
                   >
-                    <Text style={s.detailBtnText}>{program.isOpen ? '상세보기 →' : '모집 마감'}</Text>
+                    <Text style={s.detailBtnText}>
+                      {program.isOpen ? '상세보기 →' : '모집 마감'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -501,7 +586,6 @@ export default function RecommendationScreen({
           </View>
         )}
 
-        {/* 전체 탭 - ← TouchableOpacity에 onProgramClick 연결 */}
         {activeTab === 'all' && (
           <View style={{ gap: 12 }}>
             {programs.map(program => (
@@ -510,18 +594,29 @@ export default function RecommendationScreen({
                 style={s.listCard}
                 onPress={() => onProgramClick(toProgramDetail(program))}
               >
-                <Image
-                  source={{ uri: program.imageUrl }}
-                  style={s.listCardImage}
-                  resizeMode="cover"
-                />
+                {hasProgramImage(program.imageUrl) ? (
+                  <Image
+  source={{ uri: program.imageUrl ?? undefined }}
+  style={s.listCardImage}
+  resizeMode="cover"
+/>
+                ) : (
+                  <View style={[s.listCardImage, s.noImageThumb]}>
+                    <Text style={s.noImageThumbText}>✦</Text>
+                  </View>
+                )}
+
                 <View style={s.listCardBody}>
                   <View style={s.listCardTop}>
                     <View style={s.categoryBadge}>
-                      <Text style={s.categoryBadgeText}>{program.category}</Text>
+                      <Text style={s.categoryBadgeText}>
+                        {program.category}
+                      </Text>
                     </View>
                     <View style={s.aiBadgeSmall}>
-                      <Text style={s.aiBadgeSmallText}>✦ {program.matchRate}%</Text>
+                      <Text style={s.aiBadgeSmallText}>
+                        ✦ {program.matchRate}%
+                      </Text>
                     </View>
                   </View>
                   <Text style={s.listCardTitle}>{program.title}</Text>
@@ -546,29 +641,82 @@ export default function RecommendationScreen({
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 56, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 56,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
   backBtn: { width: 40, height: 40, justifyContent: 'center' },
   backBtnText: { fontSize: 20, color: '#1A1A1A' },
   headerTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A' },
-  homeBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-end' },
+  homeBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
   homeBtnText: { fontSize: 18, color: '#888' },
 
-  aiBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#EBF8FF', borderRadius: 16, margin: 16, padding: 12, borderWidth: 1, borderColor: '#BEE3F8' },
+  aiBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#EBF8FF',
+    borderRadius: 16,
+    margin: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#BEE3F8',
+  },
   aiBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   aiStar: { fontSize: 14, color: '#3182CE' },
   aiText: { fontSize: 12, fontWeight: '600', color: '#1A365D', flex: 1 },
-  aiBadge: { backgroundColor: 'rgba(255,255,255,0.7)', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 20 },
+  aiBadge: {
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
   aiBadgeText: { fontSize: 13, fontWeight: '700', color: '#3182CE' },
 
   filterRow: { paddingHorizontal: 16, paddingBottom: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { backgroundColor: '#FFF3CD', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  chip: {
+    backgroundColor: '#FFF3CD',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
   chipText: { fontSize: 13, fontWeight: '600', color: colors.primary.default },
-  chipGray: { backgroundColor: '#F3F4F6', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  chipGray: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
   chipGrayText: { fontSize: 13, color: '#888' },
 
-  tabRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  tabBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 2, borderColor: '#E2E8F0', backgroundColor: '#fff' },
+  tabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  tabBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#fff',
+  },
   tabBtnActive: { borderColor: '#F9A825', backgroundColor: '#FFE082' },
   tabBtnText: { fontSize: 13, fontWeight: '600', color: '#718096' },
   tabBtnTextActive: { color: '#7B5E00' },
@@ -576,28 +724,109 @@ const s = StyleSheet.create({
 
   scroll: { padding: 16, paddingBottom: 40 },
 
-  compareBox: { backgroundColor: '#EBF8FF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#BEE3F8' },
+  compareBox: {
+    backgroundColor: '#EBF8FF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#BEE3F8',
+  },
   compareHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   compareTitle: { fontSize: 13, fontWeight: '700', color: '#1A365D' },
   compareGrid: { flexDirection: 'row', gap: 8 },
-  compareItem: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 10, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  compareItem: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 10,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   compareRank: { fontSize: 11, fontWeight: '700', color: '#F9A825', marginBottom: 4 },
   compareTitle2: { fontSize: 11, fontWeight: '600', color: '#2D3748', textAlign: 'center' },
   compareRate: { fontSize: 14, fontWeight: '800', color: '#3182CE', marginTop: 6 },
 
-  card: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#F0F0F0', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
   cardImageWrap: { position: 'relative' },
   cardImage: { width: '100%', height: 140 },
-  cardBadgeRow: { position: 'absolute', top: 10, left: 10, flexDirection: 'row', gap: 6 },
+
+  noImageBox: {
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noImageIcon: {
+    fontSize: 22,
+    color: '#9CA3AF',
+    marginBottom: 4,
+  },
+  noImageText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  noImageThumb: {
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noImageThumbText: {
+    fontSize: 18,
+    color: '#9CA3AF',
+    fontWeight: '700',
+  },
+
+  cardBadgeRow: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    gap: 6,
+  },
   rankBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   rankBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
-  aiBadgeSmall: { backgroundColor: '#3182CE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
+  aiBadgeSmall: {
+    backgroundColor: '#3182CE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
   aiBadgeSmallText: { fontSize: 11, fontWeight: '700', color: '#fff' },
-  likeBtn: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 20, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  likeBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderRadius: 20,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   cardBody: { padding: 14, gap: 10 },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  categoryBadge: { backgroundColor: '#FFF3CD', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, alignSelf: 'flex-start', marginBottom: 4 },
+  categoryBadge: {
+    backgroundColor: '#FFF3CD',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
   categoryBadgeText: { fontSize: 10, fontWeight: '700', color: '#F9A825' },
   cardTitle: { fontSize: 15, fontWeight: '800', color: '#1A202C', marginTop: 4 },
   cardLocation: { fontSize: 12, color: '#718096', marginTop: 2 },
@@ -609,21 +838,52 @@ const s = StyleSheet.create({
   aiReasonBox: { backgroundColor: '#EBF8FF', borderRadius: 10, padding: 10 },
   aiReasonText: { fontSize: 11, fontWeight: '600', color: '#2B6CB0' },
   reviewChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  reviewChip: { backgroundColor: '#EBF8FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: '#BEE3F8' },
+  reviewChip: {
+    backgroundColor: '#EBF8FF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#BEE3F8',
+  },
   reviewChipText: { fontSize: 11, fontWeight: '600', color: '#2B6CB0' },
 
   cardFooter: { borderTopWidth: 1, borderTopColor: '#F0F0F0', padding: 12 },
-  detailBtn: { height: 40, borderRadius: 10, backgroundColor: colors.primary.default, alignItems: 'center', justifyContent: 'center' },
+  detailBtn: {
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: colors.primary.default,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   detailBtnDisabled: { backgroundColor: '#E5E7EB' },
   detailBtnText: { fontSize: 14, fontWeight: '700', color: '#1A1A1A' },
 
-  listCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#F0F0F0', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },
+  listCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   listCardImage: { width: 64, height: 64, borderRadius: 12 },
   listCardBody: { flex: 1, gap: 4 },
   listCardTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   listCardTitle: { fontSize: 13, fontWeight: '700', color: '#1A202C' },
   listCardLocation: { fontSize: 11, color: '#718096' },
-  listCardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  listCardBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
   compareSummary: {
     fontSize: 13,
     fontWeight: '700',
@@ -660,5 +920,4 @@ const s = StyleSheet.create({
     color: '#64748B',
     lineHeight: 18,
   },
-
 });

@@ -503,21 +503,42 @@ const handleDevLogin = () => {
                   setRecommendationLoading(true);
 
                   const preferenceRequest = buildPreferenceRequest(
-                    childProfile.id,
-                    data,
-                  );
-                  const preferenceId =
-                    await recommendationApi.savePreference(preferenceRequest);
-                  const recommendationPage =
-                    await recommendationApi.getRecommendations(
-                      childProfile.id,
-                      preferenceId,
-                      0,
-                      20,
-                    );
+  childProfile.id,
+  data,
+);
 
-                  setRecommendationPreferenceId(preferenceId);
-                  setRecommendationItems(recommendationPage.content);
+console.log('추천 선호도 요청값:', JSON.stringify(preferenceRequest, null, 2));
+
+const preferenceId =
+  await recommendationApi.savePreference(preferenceRequest);
+
+console.log('저장된 preferenceId:', preferenceId);
+
+const recommendationPage =
+  await recommendationApi.getRecommendations(
+    childProfile.id,
+    preferenceId,
+    0,
+    20,
+  );
+
+console.log(
+  '추천 결과 imageUrl 확인:',
+  JSON.stringify(
+    recommendationPage.content.map((item) => ({
+      rankNo: item.rankNo,
+      programId: item.programId,
+      title: item.title,
+      category: item.category,
+      imageUrl: item.imageUrl,
+    })),
+    null,
+    2,
+  ),
+);
+
+setRecommendationPreferenceId(preferenceId);
+setRecommendationItems(recommendationPage.content);
                 } catch (error) {
                   console.error('추천 결과 조회 실패', error);
                   setRecommendationErrorMessage(
