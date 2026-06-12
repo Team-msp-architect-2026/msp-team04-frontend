@@ -7,8 +7,8 @@ import * as Linking from 'expo-linking';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const KAKAO_CLIENT_ID = 'f4c7c025c81b57486c08a43afd423e5d';
-const REDIRECT_URI = 'https://destiny-why-aloe.ngrok-free.dev/auth/kakao';
+const KAKAO_CLIENT_ID = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY;
+const REDIRECT_URI = process.env.EXPO_PUBLIC_KAKAO_REDIRECT_URI;
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -17,6 +17,10 @@ interface LoginScreenProps {
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const handleKakaoLogin = async () => {
   try {
+    if (!KAKAO_CLIENT_ID || !REDIRECT_URI) {
+      throw new Error('Kakao login env is missing');
+    }
+
     const appReturnUrl = Linking.createURL('auth');
 
     const authUrl =
@@ -24,6 +28,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       `?response_type=code` +
       `&client_id=${KAKAO_CLIENT_ID}` +
       `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+      `&prompt=login` +
       `&state=${encodeURIComponent(appReturnUrl)}`;
 
     console.log('앱 복귀 URL:', appReturnUrl);
