@@ -40,6 +40,7 @@ export interface SearchProgramItem {
   ratingAvg: number;
   reviewCount: number;
   tags: string[];
+  matchScore: number;
 }
 
 export interface RecentSearchItem {
