@@ -94,6 +94,8 @@ const PALETTE = {
   blueBorder: '#DCE7FF',
 };
 
+const PAGE_SIZE = 5;
+
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'all', label: '전체' },
   { key: 'urgent', label: '마감임박' },
@@ -413,6 +415,26 @@ function toProgramDetail(program: RecruitingProgram): ProgramDetail {
   };
 }
 
+function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
+  if (totalPages <= 0) {
+    return [];
+  }
+
+  if (totalPages <= 3) {
+    return Array.from({ length: totalPages }, (_, index) => index);
+  }
+
+  if (currentPage <= 1) {
+    return [0, 1, 2];
+  }
+
+  if (currentPage >= totalPages - 2) {
+    return [totalPages - 3, totalPages - 2, totalPages - 1];
+  }
+
+  return [currentPage - 1, currentPage, currentPage + 1];
+}
+
 export default function RecruitingScreen({
   onTabChange,
   onSearchClick,
@@ -423,14 +445,20 @@ export default function RecruitingScreen({
   const [likedPrograms, setLikedPrograms] = useState<number[]>([]);
   const [bookmarkLoadingIds, setBookmarkLoadingIds] = useState<number[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [currentPage, setCurrentPage] = useState(0);
+
   useEffect(() => {
-  if (initialFilter) {
-    setActiveFilter((initialFilter as FilterKey) ?? 'all');
-  }
-}, [initialFilter]);
+    if (initialFilter) {
+      setActiveFilter((initialFilter as FilterKey) ?? 'all');
+      setCurrentPage(0);
+    }
+  }, [initialFilter]);
+
   const [programs, setPrograms] = useState<RecruitingProgram[]>([]);
   const [programLoading, setProgramLoading] = useState(false);
   const [programErrorMessage, setProgramErrorMessage] = useState('');
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [filterCounts, setFilterCounts] = useState<Record<FilterKey, number>>({
     all: 0,
     urgent: 0,
@@ -471,18 +499,22 @@ export default function RecruitingScreen({
         const response = await getPrograms({
           status: 'RECRUITING',
           filter: FILTER_TO_SERVER_FILTER[activeFilter],
-          page: 0,
-          size: 50,
+          page: currentPage,
+          size: PAGE_SIZE,
         });
 
         if (!cancelled) {
           setPrograms(response.data.content.map(toRecruitingProgram));
+          setTotalElements(response.data.totalElements);
+          setTotalPages(response.data.totalPages);
         }
       } catch (error) {
         console.error('모집중 프로그램 조회 실패', error);
 
         if (!cancelled) {
           setPrograms([]);
+          setTotalElements(0);
+          setTotalPages(0);
           setProgramErrorMessage(
             '모집중 프로그램을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
           );
@@ -499,7 +531,7 @@ export default function RecruitingScreen({
     return () => {
       cancelled = true;
     };
-  }, [activeFilter]);
+  }, [activeFilter, currentPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -596,6 +628,12 @@ export default function RecruitingScreen({
     }
   };
 
+  const visiblePageNumbers = getVisiblePageNumbers(currentPage, totalPages);
+  const hasPreviousPage = currentPage > 0;
+  const hasNextPage = currentPage < totalPages - 1;
+  const shouldShowPagination =
+    !programLoading && !programErrorMessage && totalPages > 1;
+
   const handleOpenProgram = (program: RecruitingProgram) => {
     onProgramClick?.(toProgramDetail(program));
   };
@@ -643,7 +681,10 @@ export default function RecruitingScreen({
                 <TouchableOpacity
                   key={filter.key}
                   style={[styles.filterChip, isActive && styles.filterChipActive]}
-                  onPress={() => setActiveFilter(filter.key)}
+                  onPress={() => {
+                    setActiveFilter(filter.key);
+                    setCurrentPage(0);
+                  }}
                   activeOpacity={0.78}
                 >
                   <Text
@@ -663,7 +704,7 @@ export default function RecruitingScreen({
 
         <View style={styles.listHeader}>
           <Text style={styles.listTitle}>신청 가능한 프로그램</Text>
-          <Text style={styles.listCount}>{filteredPrograms.length}개</Text>
+          <Text style={styles.listCount}>총 {totalElements}개</Text>
         </View>
 
         <View style={styles.programList}>
@@ -832,6 +873,78 @@ export default function RecruitingScreen({
           })}
         </View>
 
+          {shouldShowPagination && (
+            <View style={styles.paginationSection}>
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  !hasPreviousPage && styles.paginationButtonDisabled,
+                ]}
+                activeOpacity={0.78}
+                disabled={!hasPreviousPage}
+                onPress={() => setCurrentPage(page => Math.max(page - 1, 0))}
+              >
+                <Text
+                  style={[
+                    styles.paginationButtonText,
+                    !hasPreviousPage && styles.paginationButtonTextDisabled,
+                  ]}
+                >
+                  이전
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.pageNumberRow}>
+                {visiblePageNumbers.map(pageNumber => {
+                  const isCurrentPage = pageNumber === currentPage;
+
+                  return (
+                    <TouchableOpacity
+                      key={pageNumber}
+                      style={[
+                        styles.pageNumberButton,
+                        isCurrentPage && styles.pageNumberButtonActive,
+                      ]}
+                      activeOpacity={0.78}
+                      disabled={isCurrentPage}
+                      onPress={() => setCurrentPage(pageNumber)}
+                    >
+                      <Text
+                        style={[
+                          styles.pageNumberText,
+                          isCurrentPage && styles.pageNumberTextActive,
+                        ]}
+                      >
+                        {pageNumber + 1}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  !hasNextPage && styles.paginationButtonDisabled,
+                ]}
+                activeOpacity={0.78}
+                disabled={!hasNextPage}
+                onPress={() =>
+                  setCurrentPage(page => Math.min(page + 1, totalPages - 1))
+                }
+              >
+                <Text
+                  style={[
+                    styles.paginationButtonText,
+                    !hasNextPage && styles.paginationButtonTextDisabled,
+                  ]}
+                >
+                  다음
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
         <View style={styles.bottomSpace} />
       </ScrollView>
 
@@ -853,7 +966,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 18,
-    paddingBottom: 92,
+    paddingBottom: 52,
   },
 
   heroSection: {
@@ -1182,4 +1295,62 @@ const styles = StyleSheet.create({
   bottomSpace: {
     height: 8,
   },
+  paginationSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
+    paddingTop: 0,
+    paddingBottom: 10,
+  },
+  paginationButton: {
+    minWidth: 54,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+  },
+  paginationButtonDisabled: {
+    opacity: 0.4,
+  },
+  paginationButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: PALETTE.text,
+  },
+  paginationButtonTextDisabled: {
+    color: PALETTE.muted,
+  },
+  pageNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pageNumberButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: '#FFFFFF',
+  },
+  pageNumberButtonActive: {
+    borderColor: PALETTE.yellow,
+    backgroundColor: '#FFF8E1',
+  },
+  pageNumberText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: PALETTE.subText,
+  },
+  pageNumberTextActive: {
+    color: PALETTE.text,
+  },
+
 });
