@@ -406,7 +406,7 @@ export default function SearchScreen({
 
           <TextInput
             style={styles.input}
-            placeholder="선생님 피드백 좋은 소규모 미술 수업"
+            placeholder="무료 프로그램"
             placeholderTextColor="#A8B0BD"
             value={query}
             onChangeText={value => {
