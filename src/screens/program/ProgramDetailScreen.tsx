@@ -3,6 +3,8 @@ import { reviewApi, type ReviewItem } from '../../api/review';
 import { mypageApi } from '../../api/mypage';
 import { recommendationApi } from '../../api/recommendation';
 import {
+  ActivityIndicator,
+  Image,
   Linking,
   ScrollView,
   StyleSheet,
@@ -12,6 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { getProgramDetail } from '../../api/programApi';
+import { mapProgramDetailItemToProgramDetail } from '../../utils/programDetailMapper';
 
 export interface ProgramDetail {
   id: number;
@@ -34,6 +38,7 @@ export interface ProgramDetail {
   curriculum: string[];
   contact: string;
   website?: string;
+  imageUrl?: string | null;
   capacity: number;
   enrolled: number;
   startDate: string;
@@ -47,6 +52,7 @@ export interface ProgramDetail {
 interface Props {
   program: ProgramDetail;
   preferenceId?: number | null;
+  childId?: number | null;
   onBack: () => void;
   onApply: (program: ProgramDetail) => void;
   onGoHome: () => void;
@@ -139,6 +145,7 @@ function InfoPill({
 export default function ProgramDetailScreen({
   program,
   preferenceId,
+  childId,
   onBack,
   onApply,
   onGoHome,
@@ -149,23 +156,74 @@ export default function ProgramDetailScreen({
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [programReasonList, setProgramReasonList] = useState<string[]>([]);
+  const [programReasonLoading, setProgramReasonLoading] = useState(false);
+  const [programReasonErrorMessage, setProgramReasonErrorMessage] = useState('');
   const [reviewKeywordSummary, setReviewKeywordSummary] = useState('');
   const [reviewKeywordChips, setReviewKeywordChips] = useState<
     string[] | null
   >(null);
+  const [detailProgram, setDetailProgram] = useState<ProgramDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailErrorMessage, setDetailErrorMessage] = useState('');
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
 
-  const matchRate = program.matchRate ?? program.score;
+  const resolvedProgram = detailProgram ?? program;
+  const shouldShowImage = Boolean(resolvedProgram.imageUrl) && !imageLoadFailed;
+
+  useEffect(() => {
+    setImageLoadFailed(false);
+  }, [resolvedProgram.id, resolvedProgram.imageUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchProgramDetail = async () => {
+      setDetailLoading(true);
+      setDetailErrorMessage('');
+
+      try {
+        const response = await getProgramDetail(program.id);
+
+        if (!cancelled) {
+          setDetailProgram(
+            mapProgramDetailItemToProgramDetail(response.data, program),
+          );
+        }
+      } catch (e) {
+        console.error('프로그램 상세 조회 실패', e);
+
+        if (!cancelled) {
+          setDetailProgram(null);
+          setDetailErrorMessage(
+            '상세 정보를 불러오지 못해 목록 정보를 기준으로 표시합니다.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setDetailLoading(false);
+        }
+      }
+    };
+
+    fetchProgramDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [program.id]);
+
+  const matchRate = resolvedProgram.matchRate ?? resolvedProgram.score;
   const hasMatchRate =
     typeof matchRate === 'number' && Number.isFinite(matchRate);
-  const spotsLeft = Math.max(program.capacity - program.enrolled, 0);
-  const safeCapacity = Math.max(program.capacity, 1);
+  const spotsLeft = Math.max(resolvedProgram.capacity - resolvedProgram.enrolled, 0);
+  const safeCapacity = Math.max(resolvedProgram.capacity, 1);
   const enrolledPct = Math.min(
     100,
-    Math.round((program.enrolled / safeCapacity) * 100),
+    Math.round((resolvedProgram.enrolled / safeCapacity) * 100),
   );
 
-  const fallbackReviewChips = program.reviewChips?.length
-    ? program.reviewChips
+  const fallbackReviewChips = resolvedProgram.reviewChips?.length
+    ? resolvedProgram.reviewChips
     : ['선생님 친절', '소규모 수업', '피드백 좋음', '아이가 좋아함'];
   const reviewChips = reviewKeywordChips ?? fallbackReviewChips;
 
@@ -173,20 +231,20 @@ export default function ProgramDetailScreen({
     const fetchBookmarkStatus = async () => {
       try {
         const list = await mypageApi.getBookmarkList();
-        const found = list.some((b) => b.programId === program.id);
+        const found = list.some((b) => b.programId === resolvedProgram.id);
         setIsLiked(found);
       } catch (e) {
         console.error('북마크 상태 확인 실패', e);
       }
     };
     fetchBookmarkStatus();
-  }, [program.id]);
+  }, [resolvedProgram.id]);
 
   useEffect(() => {
     const fetchReviews = async () => {
       setReviewLoading(true);
       try {
-        const data = await reviewApi.getReviewList(program.id);
+        const data = await reviewApi.getReviewList(resolvedProgram.id);
         setReviews(data);
       } catch (e) {
         setReviews([]);
@@ -195,26 +253,40 @@ export default function ProgramDetailScreen({
       }
     };
     fetchReviews();
-  }, [program.id]);
+  }, [resolvedProgram.id]);
 
   useEffect(() => {
-    if (!preferenceId) {
+    if (!preferenceId && !childId) {
       setProgramReasonList([]);
+      setProgramReasonErrorMessage('자녀 정보 등록 후 AI 추천 이유를 확인할 수 있습니다.');
       return;
     }
 
     let cancelled = false;
 
     const fetchProgramReason = async () => {
+      setProgramReasonLoading(true);
+      setProgramReasonErrorMessage('');
+
       try {
         const data = await recommendationApi.getProgramReason(
           program.id,
-          preferenceId,
+          {
+            preferenceId,
+            childId,
+          },
         );
 
         if (!cancelled) {
-          setProgramReasonList(
-            (data.reasonList ?? []).filter(reason => reason.trim().length > 0),
+          const reasons = (data.reasonList ?? [])
+            .map(reason => reason.trim())
+            .filter(reason => reason.length > 0);
+
+          setProgramReasonList(reasons);
+          setProgramReasonErrorMessage(
+            reasons.length > 0
+              ? ''
+              : 'AI 추천 이유를 불러오지 못했습니다.',
           );
         }
       } catch (e) {
@@ -222,6 +294,13 @@ export default function ProgramDetailScreen({
 
         if (!cancelled) {
           setProgramReasonList([]);
+          setProgramReasonErrorMessage(
+            '최근 추천 조건을 찾을 수 없어 AI 추천 이유를 표시할 수 없습니다.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setProgramReasonLoading(false);
         }
       }
     };
@@ -231,14 +310,14 @@ export default function ProgramDetailScreen({
     return () => {
       cancelled = true;
     };
-  }, [program.id, preferenceId]);
+  }, [program.id, preferenceId, childId]);
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchReviewKeywords = async () => {
       try {
-        const data = await reviewApi.getReviewKeywords(program.id);
+        const data = await reviewApi.getReviewKeywords(resolvedProgram.id);
 
         if (cancelled) {
           return;
@@ -264,40 +343,32 @@ export default function ProgramDetailScreen({
     return () => {
       cancelled = true;
     };
-  }, [program.id]);
+  }, [resolvedProgram.id]);
 
-  const aiReasons = useMemo(() => {
-    if (programReasonList.length > 0) {
-      return programReasonList;
-    }
+  const reasonSectionTitle = 'AI 추천 이유';
 
-    return [
-      program.aiReason ??
-        '소규모 수업과 선생님 피드백을 원하는 조건에 잘 맞는 프로그램입니다.',
-      program.distance !== '-'
-        ? `${program.location} 위치, ${program.distance} 거리라 이동 부담이 적어요.`
-        : '온라인 수업으로 이동 부담 없이 참여할 수 있어요.',
-      program.priceValue === 0
-        ? '무료 또는 공공 지원 프로그램이라 비용 부담이 낮아요.'
-        : `${program.price}으로 예산 조건에 맞춰 검토하기 좋아요.`,
-      `${program.ageRange} 대상 수업이라 자녀 연령 조건과 잘 맞아요.`,
-    ];
-  }, [program, programReasonList]);
+  const reasonSectionItems = programReasonLoading
+    ? ['아이 정보와 프로그램 정보를 바탕으로 추천 이유를 분석하고 있습니다.']
+    : programReasonList.length > 0
+      ? programReasonList
+      : programReasonErrorMessage
+        ? [programReasonErrorMessage]
+        : ['AI 추천 이유를 준비 중입니다.'];
 
   const handleOpenWebsite = () => {
-    if (!program.website) {
+    if (!resolvedProgram.website) {
       return;
     }
 
-    Linking.openURL(program.website);
+    Linking.openURL(resolvedProgram.website);
   };
 
   const handleCall = () => {
-    if (!program.contact) {
+    if (!resolvedProgram.contact) {
       return;
     }
 
-    Linking.openURL(`tel:${program.contact}`);
+    Linking.openURL(`tel:${resolvedProgram.contact}`);
   };
 
   return (
@@ -322,7 +393,7 @@ export default function ProgramDetailScreen({
             if (bookmarkLoading) return;
             setBookmarkLoading(true);
             try {
-              const result = await mypageApi.toggleBookmark(program.id);
+              const result = await mypageApi.toggleBookmark(resolvedProgram.id);
               setIsLiked(result.bookmarked);
             } catch (e) {
               console.error('북마크 토글 실패', e);
@@ -348,18 +419,29 @@ export default function ProgramDetailScreen({
       >
         <View style={styles.summarySection}>
           <View style={styles.heroCard}>
-            <View style={styles.heroIconCircle}>
-              <Text style={styles.heroEmoji}>🏫</Text>
-            </View>
-            <View style={styles.heroGlowOne} />
-            <View style={styles.heroGlowTwo} />
+            {shouldShowImage ? (
+              <Image
+                source={{ uri: resolvedProgram.imageUrl as string }}
+                style={styles.heroImage}
+                resizeMode="cover"
+                onError={() => setImageLoadFailed(true)}
+              />
+            ) : (
+              <>
+                <View style={styles.heroIconCircle}>
+                  <Text style={styles.heroEmoji}>🏫</Text>
+                </View>
+                <View style={styles.heroGlowOne} />
+                <View style={styles.heroGlowTwo} />
+              </>
+            )}
           </View>
 
           <View style={styles.summaryContent}>
             <View style={styles.badgeRow}>
-              <InfoPill>{TYPE_LABELS[program.type]}</InfoPill>
+              <InfoPill>{TYPE_LABELS[resolvedProgram.type]}</InfoPill>
 
-              {program.isPartner && (
+              {resolvedProgram.isPartner && (
                 <InfoPill tone="yellow">MoMent 제휴</InfoPill>
               )}
 
@@ -368,16 +450,27 @@ export default function ProgramDetailScreen({
               )}
             </View>
 
-            <Text style={styles.organization}>{program.organization}</Text>
-            <Text style={styles.title}>{program.title}</Text>
+            <Text style={styles.organization}>{resolvedProgram.organization}</Text>
+            <Text style={styles.title}>{resolvedProgram.title}</Text>
 
             <View style={styles.ratingLine}>
               <Ionicons name="star" size={14} color="#F8B400" />
-              <Text style={styles.ratingValue}>{program.rating}</Text>
+              <Text style={styles.ratingValue}>{resolvedProgram.rating}</Text>
               <Text style={styles.ratingMeta}>
-                ({program.reviewCount}개 후기)
+                ({resolvedProgram.reviewCount}개 후기)
               </Text>
             </View>
+
+            {detailLoading && (
+              <View style={styles.detailStateRow}>
+                <ActivityIndicator size="small" color={PALETTE.primary} />
+                <Text style={styles.detailStateText}>상세 정보 불러오는 중</Text>
+              </View>
+            )}
+
+            {detailErrorMessage ? (
+              <Text style={styles.detailErrorText}>{detailErrorMessage}</Text>
+            ) : null}
           </View>
         </View>
 
@@ -388,8 +481,8 @@ export default function ProgramDetailScreen({
                 <Ionicons name="location-outline" size={14} color={PALETTE.muted} />
                 <Text style={styles.quickLabel}>위치</Text>
               </View>
-              <Text style={styles.quickValue} numberOfLines={1}>
-                {program.distance}
+              <Text style={styles.quickValue} numberOfLines={2}>
+                {resolvedProgram.address}
               </Text>
             </View>
 
@@ -399,7 +492,7 @@ export default function ProgramDetailScreen({
                 <Text style={styles.quickLabel}>비용</Text>
               </View>
               <Text style={styles.quickValue} numberOfLines={1}>
-                {program.price}
+                {resolvedProgram.price}
               </Text>
             </View>
 
@@ -409,7 +502,7 @@ export default function ProgramDetailScreen({
                 <Text style={styles.quickLabel}>대상</Text>
               </View>
               <Text style={styles.quickValue} numberOfLines={1}>
-                {program.ageRange}
+                {resolvedProgram.ageRange}
               </Text>
             </View>
 
@@ -419,7 +512,7 @@ export default function ProgramDetailScreen({
                 <Text style={styles.quickLabel}>일정</Text>
               </View>
               <Text style={styles.quickValue} numberOfLines={1}>
-                {program.schedule}
+                {resolvedProgram.schedule}
               </Text>
             </View>
           </View>
@@ -431,7 +524,7 @@ export default function ProgramDetailScreen({
               <View style={styles.capacityRemainBadge}>
                 <View style={styles.capacityRemainDot} />
                 <Text style={styles.capacityRemainText}>
-                  {program.isOpen ? `잔여 ${spotsLeft}석` : '모집 마감'}
+                  {resolvedProgram.isOpen ? `잔여 ${spotsLeft}석` : '모집 마감'}
                 </Text>
               </View>
             </View>
@@ -449,8 +542,8 @@ export default function ProgramDetailScreen({
             </View>
 
             <View style={styles.capacityMetaRow}>
-              <Text style={styles.capacityMeta}>{program.enrolled}명 신청</Text>
-              <Text style={styles.capacityMeta}>정원 {program.capacity}명</Text>
+              <Text style={styles.capacityMeta}>{resolvedProgram.enrolled}명 신청</Text>
+              <Text style={styles.capacityMeta}>정원 {resolvedProgram.capacity}명</Text>
             </View>
           </View>
 
@@ -484,7 +577,7 @@ export default function ProgramDetailScreen({
                   activeTab === 'review' && styles.tabTextActive,
                 ]}
               >
-                후기 ({program.reviewCount})
+                후기 ({resolvedProgram.reviewCount})
               </Text>
             </TouchableOpacity>
           </View>
@@ -494,11 +587,11 @@ export default function ProgramDetailScreen({
               <View style={styles.aiReasonCard}>
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="sparkles" size={15} color={PALETTE.primary} />
-                  <Text style={styles.aiReasonTitle}>AI 추천 이유</Text>
+                  <Text style={styles.aiReasonTitle}>{reasonSectionTitle}</Text>
                 </View>
 
                 <View style={styles.reasonList}>
-                  {aiReasons.map(reason => (
+                  {reasonSectionItems.map(reason => (
                     <View key={reason} style={styles.reasonItem}>
                       <Ionicons
                         name="checkmark"
@@ -514,7 +607,7 @@ export default function ProgramDetailScreen({
 
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>프로그램 소개</Text>
-                <Text style={styles.sectionBody}>{program.description}</Text>
+                <Text style={styles.sectionBody}>{resolvedProgram.description}</Text>
               </View>
 
               <View style={styles.section}>
@@ -524,12 +617,12 @@ export default function ProgramDetailScreen({
                   {[
                     {
                       label: '운영 기간',
-                      value: `${program.startDate} ~ ${program.endDate}`,
+                      value: `${resolvedProgram.startDate} ~ ${resolvedProgram.endDate}`,
                     },
-                    { label: '운영 시간', value: program.schedule },
-                    { label: '대상 연령', value: program.ageRange },
-                    { label: '수업 인원', value: `최대 ${program.capacity}명` },
-                    { label: '위치', value: program.address },
+                    { label: '운영 시간', value: resolvedProgram.schedule },
+                    { label: '대상 연령', value: resolvedProgram.ageRange },
+                    { label: '수업 인원', value: `최대 ${resolvedProgram.capacity}명` },
+                    { label: '위치', value: resolvedProgram.address },
                   ].map((item, index, arr) => (
                     <View
                       key={item.label}
@@ -549,7 +642,7 @@ export default function ProgramDetailScreen({
                 <Text style={styles.sectionTitle}>커리큘럼</Text>
 
                 <View style={styles.curriculumList}>
-                  {program.curriculum.map((item, index) => (
+                  {resolvedProgram.curriculum.map((item, index) => (
                     <View key={`${item}-${index}`} style={styles.curriculumItem}>
                       <View style={styles.curriculumCheck}>
                         <Ionicons name="checkmark" size={12} color="#FFFFFF" />
@@ -584,7 +677,7 @@ export default function ProgramDetailScreen({
                   <Text style={styles.mapText}>지도 준비중</Text>
                 </View>
 
-                <Text style={styles.addressText}>{program.address}</Text>
+                <Text style={styles.addressText}>{resolvedProgram.address}</Text>
               </View>
 
               <View style={styles.section}>
@@ -598,12 +691,12 @@ export default function ProgramDetailScreen({
                   >
                     <View style={styles.contactLeft}>
                       <Ionicons name="call-outline" size={16} color={PALETTE.muted} />
-                      <Text style={styles.contactText}>{program.contact}</Text>
+                      <Text style={styles.contactText}>{resolvedProgram.contact}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
                   </TouchableOpacity>
 
-                  {program.website && (
+                  {resolvedProgram.website && (
                     <TouchableOpacity
                       style={[styles.contactRow, styles.contactRowBorder]}
                       onPress={handleOpenWebsite}
@@ -627,7 +720,7 @@ export default function ProgramDetailScreen({
                 <Text style={styles.sectionTitle}>태그</Text>
 
                 <View style={styles.tagSection}>
-                  {program.tags.map(tag => (
+                  {resolvedProgram.tags.map(tag => (
                     <View key={tag} style={styles.tagChip}>
                       <Text style={styles.tagText}>#{tag}</Text>
                     </View>
@@ -639,10 +732,10 @@ export default function ProgramDetailScreen({
             <View style={styles.tabContent}>
               <View style={styles.reviewSummaryCard}>
                 <View style={styles.reviewScoreBox}>
-                  <Text style={styles.reviewScore}>{program.rating}</Text>
-                  <StarRating rating={program.rating} size={13} />
+                  <Text style={styles.reviewScore}>{resolvedProgram.rating}</Text>
+                  <StarRating rating={resolvedProgram.rating} size={13} />
                   <Text style={styles.reviewTotalText}>
-                    {program.reviewCount}개 후기
+                    {resolvedProgram.reviewCount}개 후기
                   </Text>
                 </View>
 
@@ -731,10 +824,10 @@ export default function ProgramDetailScreen({
         <View style={styles.ctaSummaryRow}>
           <View style={styles.ctaPriceBlock}>
             <Text style={styles.ctaLabel}>월 수강료</Text>
-            <Text style={styles.ctaPrice}>{program.price}</Text>
+            <Text style={styles.ctaPrice}>{resolvedProgram.price}</Text>
           </View>
 
-          {program.isOpen && (
+          {resolvedProgram.isOpen && (
             <View style={styles.ctaSeatBadge}>
               <View style={styles.ctaSeatDot} />
               <Text style={styles.ctaSeatText}>잔여 {spotsLeft}석</Text>
@@ -754,15 +847,15 @@ export default function ProgramDetailScreen({
           <TouchableOpacity
             style={[
               styles.applyButton,
-              !program.isOpen && styles.applyButtonDisabled,
+              !resolvedProgram.isOpen && styles.applyButtonDisabled,
             ]}
-            onPress={() => program.isOpen && onApply(program)}
-            disabled={!program.isOpen}
+            onPress={() => resolvedProgram.isOpen && onApply(program)}
+            disabled={!resolvedProgram.isOpen}
             activeOpacity={0.85}
           >
             <Text style={styles.applyButtonText}>
-              {program.isOpen
-                ? program.isPartner
+              {resolvedProgram.isOpen
+                ? resolvedProgram.isPartner
                   ? '신청하기'
                   : '신청 페이지로 이동'
                 : '모집 마감'}
@@ -826,11 +919,16 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
-    height: 148,
+    height: 260,
     backgroundColor: '#F7F9FD',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+
+  heroImage: {
+    width: '100%',
+    height: '100%',
   },
 
   heroIconCircle: {
@@ -845,6 +943,24 @@ const styles = StyleSheet.create({
 
   heroEmoji: {
     fontSize: 40,
+  },
+
+  detailStateRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  detailStateText: {
+    fontSize: 12,
+    color: PALETTE.subText,
+  },
+
+  detailErrorText: {
+    marginTop: 10,
+    fontSize: 12,
+    color: PALETTE.coralDark,
   },
 
   heroGlowOne: {

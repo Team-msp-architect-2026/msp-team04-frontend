@@ -683,6 +683,7 @@ const handleDevLogin = () => {
                   ? recommendationPreferenceId
                   : null
               }
+              childId={childProfile?.id ?? null}
               onBack={() => {
                 setCurrentScreen(programDetailBackScreen);
                 setSelectedProgram(null);

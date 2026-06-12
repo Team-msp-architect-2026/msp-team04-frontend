@@ -405,6 +405,7 @@ function toProgramDetail(program: RecruitingProgram): ProgramDetail {
     curriculum: program.curriculum,
     contact: program.contact,
     website: program.website,
+    imageUrl: program.imageUrl,
     capacity: program.capacity,
     enrolled: program.enrolled,
     startDate: program.startDate,
