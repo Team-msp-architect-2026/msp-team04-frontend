@@ -15,7 +15,7 @@ import { getPrograms, type ProgramListItem } from '../../api/programApi';
 import { mypageApi } from '../../api/mypage';
 
 type ProgramType = 'public' | 'private' | 'online' | 'government';
-type FilterKey = 'all' | 'urgent' | 'free' | 'online' | 'public';
+type FilterKey = 'all' | 'urgent' | 'free' | 'online';
 
 interface RecruitingProgram {
   id: number;
@@ -47,7 +47,6 @@ interface RecruitingProgram {
   isPartner: boolean;
   aiReason?: string;
   reviewChips?: string[];
-  matchRate: number;
   startDate: string;
   endDate: string;
 }
@@ -100,8 +99,17 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'urgent', label: '마감임박' },
   { key: 'free', label: '무료' },
   { key: 'online', label: '온라인' },
-  { key: 'public', label: '공공/지원' },
 ];
+
+const FILTER_TO_SERVER_FILTER: Record<
+  FilterKey,
+  'ALL' | 'URGENT' | 'FREE' | 'ONLINE'
+> = {
+  all: 'ALL',
+  urgent: 'URGENT',
+  free: 'FREE',
+  online: 'ONLINE',
+};
 
 const TYPE_LABELS: Record<ProgramType, string> = {
   public: '공공',
@@ -153,16 +161,48 @@ function getCategoryLabel(category: string | null): string {
   return categoryMap[category] ?? category;
 }
 
+function normalizeCode(value: string | null | undefined): string {
+  return (value ?? '').trim().toUpperCase();
+}
+
+function containsOnlineText(value: string | null | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+
+  const lowerValue = value.toLowerCase();
+
+  return (
+    value.includes('온라인') ||
+    value.includes('비대면') ||
+    lowerValue.includes('online')
+  );
+}
+
 function getProgramType(program: ProgramListItem): ProgramType {
-  if (program.classType === 'ONLINE') {
+  if (normalizeCode(program.classType) === 'ONLINE' || containsOnlineText(program.classType)) {
     return 'online';
+  }
+
+  const programType = normalizeCode(program.programType);
+
+  if (programType === 'GOVERNMENT') {
+    return 'government';
+  }
+
+  if (programType === 'PUBLIC') {
+    return 'public';
+  }
+
+  if (programType === 'PRIVATE') {
+    return 'private';
   }
 
   if (program.category === 'BENEFIT') {
     return 'government';
   }
 
-  if (program.isFree || program.price === 0) {
+  if (program.isPublic) {
     return 'public';
   }
 
@@ -170,15 +210,60 @@ function getProgramType(program: ProgramListItem): ProgramType {
 }
 
 function formatPrice(program: ProgramListItem): string {
-  if (program.isFree || program.price === 0) {
+  if (program.isFree) {
     return '무료';
   }
 
-  if (program.price == null) {
-    return '가격 확인 필요';
+  if (program.price != null && program.price > 0) {
+    return `${program.price.toLocaleString()}원`;
   }
 
-  return `${program.price.toLocaleString()}원`;
+  return '가격 확인 필요';
+}
+
+function formatAgeRange(minAge: number | null, maxAge: number | null): string {
+  if (minAge != null && maxAge != null) {
+    return `${minAge}~${maxAge}세`;
+  }
+
+  if (minAge != null) {
+    return `${minAge}세 이상`;
+  }
+
+  if (maxAge != null) {
+    return `${maxAge}세 이하`;
+  }
+
+  return '대상 연령 확인 필요';
+}
+
+function formatSchedule(program: ProgramListItem): string {
+  const classType = program.classType ?? '운영 방식 확인 필요';
+
+  if (program.classTime) {
+    return `${classType} · ${program.classTime}`;
+  }
+
+  return classType;
+}
+
+function formatDate(value: string | null | undefined, fallback: string): string {
+  if (!value) {
+    return fallback;
+  }
+
+  return value;
+}
+
+function splitCurriculum(curriculum: string | null): string[] {
+  if (!curriculum || !curriculum.trim()) {
+    return ['상세 커리큘럼은 프로그램 상세 정보를 확인해 주세요.'];
+  }
+
+  return curriculum
+    .split(/\r?\n|\|/)
+    .map(item => item.trim())
+    .filter(Boolean);
 }
 
 function getDeadlineLabel(deadlineDate: string | null): string {
@@ -246,14 +331,16 @@ function toRecruitingProgram(program: ProgramListItem): RecruitingProgram {
   const categoryLabel = getCategoryLabel(program.category);
   const capacity = program.maxCapacity ?? 0;
   const spotsLeft = Math.max(program.remainCapacity ?? 0, 0);
-  const enrolled = Math.max(capacity - spotsLeft, 0);
+  const enrolled = capacity > 0 ? Math.max(capacity - spotsLeft, 0) : 0;
   const rating = program.ratingAvg ?? 0;
   const type = getProgramType(program);
+  const isFree = Boolean(program.isFree) || program.price === 0;
+  const typeLabel = TYPE_LABELS[type];
 
   return {
     id: program.id,
     title: decodeHtml(program.name),
-    organization: program.region ? `${program.region} 운영기관` : '운영기관 확인 필요',
+    organization: program.institutionName ?? '운영기관 확인 필요',
     type,
     category: categoryLabel,
     imageUrl: program.imageUrl ?? null,
@@ -266,27 +353,32 @@ function toRecruitingProgram(program: ProgramListItem): RecruitingProgram {
     priceValue: program.price ?? 0,
     rating,
     reviewCount: program.reviewCount ?? 0,
-    ageRange: '대상 연령 확인 필요',
-    schedule: program.classType ?? '운영 일정 확인 필요',
+    ageRange: formatAgeRange(program.targetAgeMin, program.targetAgeMax),
+    schedule: formatSchedule(program),
     spotsLeft,
     capacity,
     enrolled,
     isOpen: program.isRecruiting,
     tags: [
       categoryLabel,
-      program.isFree ? '무료' : '유료',
-      program.region ?? '지역 확인',
-    ],
-    description: `${program.name} 프로그램입니다. 자세한 운영 내용은 상세 화면에서 확인해 주세요.`,
-    curriculum: ['프로그램 소개', '참여 활동', '마무리 및 피드백'],
-    contact: '문의처 확인 필요',
-    website: undefined,
+      typeLabel,
+      isFree ? '무료' : '유료',
+      program.region ?? null,
+    ].filter(Boolean) as string[],
+    description:
+      program.description?.trim() ||
+      '프로그램 설명 정보가 아직 제공되지 않았습니다.',
+    curriculum: splitCurriculum(program.curriculum),
+    contact: program.contactPhone ?? '문의처 확인 필요',
+    website: program.contactUrl ?? undefined,
     isPartner: type === 'private',
     aiReason: undefined,
     reviewChips: undefined,
-    matchRate: rating > 0 ? Math.min(Math.round(rating * 20), 99) : 80,
-    startDate: '운영 시작일 확인 필요',
-    endDate: program.deadlineDate ?? '운영 종료일 확인 필요',
+    startDate: formatDate(program.operationStart, '운영 시작일 확인 필요'),
+    endDate: formatDate(
+      program.operationEnd ?? program.deadlineDate,
+      '운영 종료일 확인 필요',
+    ),
   };
 }
 
@@ -305,7 +397,6 @@ function toProgramDetail(program: RecruitingProgram): ProgramDetail {
     reviewCount: program.reviewCount,
     ageRange: program.ageRange,
     schedule: program.schedule,
-    score: program.matchRate,
     isOpen: program.isOpen,
     tags: program.tags,
     description: program.description,
@@ -319,7 +410,6 @@ function toProgramDetail(program: RecruitingProgram): ProgramDetail {
     isPartner: program.isPartner,
     aiReason: program.aiReason,
     reviewChips: program.reviewChips,
-    matchRate: program.matchRate,
   };
 }
 
@@ -341,6 +431,12 @@ export default function RecruitingScreen({
   const [programs, setPrograms] = useState<RecruitingProgram[]>([]);
   const [programLoading, setProgramLoading] = useState(false);
   const [programErrorMessage, setProgramErrorMessage] = useState('');
+  const [filterCounts, setFilterCounts] = useState<Record<FilterKey, number>>({
+    all: 0,
+    urgent: 0,
+    free: 0,
+    online: 0,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -374,12 +470,10 @@ export default function RecruitingScreen({
       try {
         const response = await getPrograms({
           status: 'RECRUITING',
+          filter: FILTER_TO_SERVER_FILTER[activeFilter],
           page: 0,
           size: 50,
         });
-
-        console.log('프로그램 첫번째 데이터:', JSON.stringify(response.data.content[0], null, 2));
-        console.log('deadlineDate 샘플:', response.data.content.slice(0, 5).map(p => ({ id: p.id, name: p.name, deadlineDate: p.deadlineDate })));
 
         if (!cancelled) {
           setPrograms(response.data.content.map(toRecruitingProgram));
@@ -405,66 +499,76 @@ export default function RecruitingScreen({
     return () => {
       cancelled = true;
     };
+  }, [activeFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchFilterCounts = async () => {
+      try {
+        const entries = await Promise.all(
+          FILTERS.map(async ({ key }) => {
+            const response = await getPrograms({
+              status: 'RECRUITING',
+              filter: FILTER_TO_SERVER_FILTER[key],
+              page: 0,
+              size: 1,
+            });
+
+            return [key, response.data.totalElements] as const;
+          }),
+        );
+
+        if (!cancelled) {
+          const nextCounts: Record<FilterKey, number> = {
+            all: 0,
+            urgent: 0,
+            free: 0,
+            online: 0,
+                  };
+
+          entries.forEach(([key, value]) => {
+            nextCounts[key] = value;
+          });
+
+          setFilterCounts(nextCounts);
+        }
+      } catch (error) {
+        console.error('모집중 필터 카운트 조회 실패', error);
+      }
+    };
+
+    fetchFilterCounts();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const filteredPrograms = useMemo(() => {
-    if (activeFilter === 'urgent') {
-      return programs.filter(
-        program => program.urgency === 'urgent' || program.urgency === 'soon',
-      );
-    }
-
-    if (activeFilter === 'free') {
-      return programs.filter(program => program.priceValue === 0);
-    }
-
-    if (activeFilter === 'online') {
-      return programs.filter(program => program.type === 'online');
-    }
-
-    if (activeFilter === 'public') {
-      return programs.filter(
-        program => program.type === 'public' || program.type === 'government',
-      );
-    }
-
-    return programs;
-  }, [activeFilter, programs]);
-
-  const urgentCount = programs.filter(
-    program => program.urgency === 'urgent' || program.urgency === 'soon',
-  ).length;
-
-  const freeCount = programs.filter(
-    program => program.priceValue === 0,
-  ).length;
-
-  const onlineCount = programs.filter(
-    program => program.type === 'online',
-  ).length;
+  const filteredPrograms = programs;
 
   const heroStats = [
     {
       key: 'all',
-      value: programs.length,
+      value: filterCounts.all,
       label: '전체',
       color: PALETTE.text,
     },
     {
       key: 'urgent',
-      value: urgentCount,
+      value: filterCounts.urgent,
       label: '마감임박',
       color: PALETTE.coralDark,
     },
     {
       key: 'free',
-      value: freeCount,
+      value: filterCounts.free,
       label: '무료',
       color: PALETTE.greenDark,
     },
     {
       key: 'online',
-      value: onlineCount,
+      value: filterCounts.online,
       label: '온라인',
       color: PALETTE.blueDark,
     },
@@ -704,8 +808,10 @@ export default function RecruitingScreen({
 
                 <View style={styles.cardFooter}>
                   <View>
-                    <Text style={styles.matchLabel}>AI 매칭률</Text>
-                    <Text style={styles.matchValue}>{program.matchRate}%</Text>
+                    <Text style={styles.statusLabel}>모집 상태</Text>
+                    <Text style={styles.statusValue}>
+                      {program.isOpen ? '신청 가능' : '마감'}
+                    </Text>
                   </View>
 
                   <TouchableOpacity
@@ -1041,13 +1147,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 
-  matchLabel: {
+  statusLabel: {
     fontSize: 10,
     fontWeight: '800',
     color: PALETTE.muted,
   },
 
-  matchValue: {
+  statusValue: {
     marginTop: 3,
     fontSize: 16,
     fontWeight: '900',
