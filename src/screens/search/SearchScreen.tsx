@@ -33,13 +33,6 @@ interface SearchResult extends ProgramDetail {
   imageUrl?: string | null;
 }
 
-const FALLBACK_AI_SUGGESTIONS = [
-  '선생님 피드백 좋은 소규모 미술 수업',
-  '집 근처 무료 공공 프로그램',
-  '주말에 가능한 창의력 수업',
-  '언어 자극에 도움되는 독서 프로그램',
-];
-
 const QUICK_CONDITIONS = [
   '무료 프로그램',
   '소규모',
@@ -200,6 +193,8 @@ export default function SearchScreen({
   const [searched, setSearched] = useState(initialSearched);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [aiSuggestionsLoading, setAiSuggestionsLoading] = useState(false);
+  const [aiSuggestionsError, setAiSuggestionsError] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [resultTotal, setResultTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
@@ -211,8 +206,6 @@ export default function SearchScreen({
   const loadingMoreRef = useRef(false);
 
   const trimmedQuery = query.trim();
-  const aiSuggestionKeywords =
-    aiSuggestions.length > 0 ? aiSuggestions : FALLBACK_AI_SUGGESTIONS;
 
   const resultCountLabel = useMemo(() => {
     if (!trimmedQuery) {
@@ -236,6 +229,9 @@ export default function SearchScreen({
 
   const loadSearchSuggestions = async () => {
     try {
+      setAiSuggestionsLoading(true);
+      setAiSuggestionsError(false);
+
       const suggestionItems = await searchApi.getSearchSuggestions();
       const keywords = suggestionItems
         .map(item => item.keyword.trim())
@@ -247,6 +243,9 @@ export default function SearchScreen({
     } catch (error) {
       console.warn('AI 추천 검색어 조회 실패:', error);
       setAiSuggestions([]);
+      setAiSuggestionsError(true);
+    } finally {
+      setAiSuggestionsLoading(false);
     }
   };
 
@@ -532,22 +531,39 @@ export default function SearchScreen({
               </View>
 
               <View style={styles.suggestionList}>
-                {aiSuggestionKeywords.map(item => (
-                  <TouchableOpacity
-                    key={item}
-                    style={styles.suggestionItem}
-                    onPress={() => handleSearch(item)}
-                    activeOpacity={0.75}
-                  >
-                    <View style={styles.suggestionDot} />
-
-                    <Text style={styles.suggestionText} numberOfLines={1}>
-                      {item}
+                {aiSuggestionsLoading ? (
+                  <View style={styles.suggestionStatusRow}>
+                    <ActivityIndicator size="small" color="#A8B0BD" />
+                    <Text style={styles.suggestionStatusText}>
+                      맞춤 추천어를 불러오는 중이에요
                     </Text>
+                  </View>
+                ) : aiSuggestionsError ? (
+                  <Text style={styles.suggestionStatusText}>
+                    추천어를 불러오지 못했어요
+                  </Text>
+                ) : aiSuggestions.length === 0 ? (
+                  <Text style={styles.suggestionStatusText}>
+                    아직 추천어가 없어요
+                  </Text>
+                ) : (
+                  aiSuggestions.map(item => (
+                    <TouchableOpacity
+                      key={item}
+                      style={styles.suggestionItem}
+                      onPress={() => handleSearch(item)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.suggestionDot} />
 
-                    <Ionicons name="chevron-forward" size={15} color="#C5CCD6" />
-                  </TouchableOpacity>
-                ))}
+                      <Text style={styles.suggestionText} numberOfLines={1}>
+                        {item}
+                      </Text>
+
+                      <Ionicons name="chevron-forward" size={15} color="#C5CCD6" />
+                    </TouchableOpacity>
+                  ))
+                )}
               </View>
             </View>
 
@@ -1078,6 +1094,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#374151',
+  },
+
+  suggestionStatusRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+  },
+
+  suggestionStatusText: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#94A3B8',
   },
 
   loadingMoreRow: {
