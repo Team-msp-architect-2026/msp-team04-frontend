@@ -5,9 +5,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchBenefitMatches, recalculateBenefits } from '../api/benefit';
-import type { BenefitMatch } from '../api/benefit';
-import { fetchChildren } from '../api/child';
+import { fetchBenefitSummary, recalculateBenefits } from '../api/benefit';
+import type { BenefitMatch, BenefitSummary } from '../api/benefit';
  
 // ─────────────────────────────────────────────
 // 타입
@@ -32,6 +31,9 @@ interface BenefitItem {
   monthlyAmount: number;
   status: MatchStatus;
   description?: string;
+  conditionDescription?: string;
+  region?: string | null;
+  applyLink?: string | null;
   deadline?: string;
   targets?: string[];
   documents?: string[];
@@ -61,28 +63,59 @@ interface BenefitScreenProps {
 // ─────────────────────────────────────────────
 // 매핑 유틸
 // ─────────────────────────────────────────────
-function getBenefitVisual(type: string): { icon: string; iconBg: string } {
+function getBenefitVisual(type?: string | null): { icon: string; iconBg: string } {
   switch (type) {
-    case '바우처':        return { icon: '🏠', iconBg: '#EAFBF3' };
-    case '교육비':        return { icon: '📚', iconBg: '#EBF4FF' };
-    case '무료 프로그램': return { icon: '🎨', iconBg: '#F0FFF4' };
+    case 'VOUCHER':
+    case '바우처':
+      return { icon: '🏠', iconBg: '#EAFBF3' };
+    case 'EDUCATION':
+    case '교육비':
+      return { icon: '📚', iconBg: '#EBF4FF' };
+    case 'FREE_PROGRAM':
+    case '무료 프로그램':
+      return { icon: '🎨', iconBg: '#F0FFF4' };
+    case 'ALLOWANCE':
     case '지원금':
-    default:              return { icon: '👵🏻', iconBg: '#FFF1E8' };
+    default:
+      return { icon: '👵🏻', iconBg: '#FFF1E8' };
   }
 }
  
 function toBenefitItem(match: BenefitMatch): BenefitItem {
-  const { icon, iconBg } = getBenefitVisual(match.benefitType);
+  const displayType = match.benefitType ?? '지원금';
+  const { icon, iconBg } = getBenefitVisual(displayType);
+
   return {
     id: match.matchId,
     icon,
     iconBg,
     title: match.benefitName,
-    type: match.benefitType,
-    monthlyAmount: match.expectedMonthlySaving,
+    type: displayType,
+    monthlyAmount: match.expectedMonthlySaving ?? 0,
     status: match.matchStatus as MatchStatus,
-    description: match.supportDescription,
+    description: match.supportDescription ?? match.conditionDescription ?? '',
+    conditionDescription: match.conditionDescription ?? undefined,
+    region: match.region,
+    applyLink: match.applyLink,
     deadline: '상시',
+    targets: match.conditionDescription ? [match.conditionDescription] : [],
+    documents: [],
+    steps: match.applyLink
+      ? ['공식 신청 페이지에서 자격 조건 확인', '필요 서류 확인', '신청 진행']
+      : [],
+    conditions:
+      match.matchStatus === 'CONDITION_CHECK'
+        ? [
+            {
+              id: 1,
+              icon: '📋',
+              iconBg: '#EBF4FF',
+              label: '공식 자격 조건 확인 필요',
+              status: 'pending',
+            },
+          ]
+        : [],
+    conditionNote: match.conditionDescription ?? undefined,
   };
 }
  
@@ -210,6 +243,13 @@ function BenefitDetailView({
             <Text style={dStyles.summaryLabel}>신청 마감</Text>
             <Text style={dStyles.summaryValueDark}>{benefit.deadline ?? '상시'}</Text>
           </View>
+          {benefit.region && (
+            <View style={dStyles.summaryRow}>
+              <Ionicons name="location-outline" size={16} color="#888" />
+              <Text style={dStyles.summaryLabel}>제공 기관/지역</Text>
+              <Text style={dStyles.summaryValueDark}>{benefit.region}</Text>
+            </View>
+          )}
         </View>
  
         {sections.map((sec, idx) => (
@@ -369,6 +409,13 @@ function BenefitConditionView({
           })}
         </View>
  
+        {benefit.conditionNote && (
+          <View style={cStyles.conditionNoteCard}>
+            <Text style={cStyles.conditionNoteTitle}>공식 조건 안내</Text>
+            <Text style={cStyles.conditionNoteText}>{benefit.conditionNote}</Text>
+          </View>
+        )}
+
         {remainCount > 0 && (
           <View style={cStyles.noteBanner}>
             <Image
@@ -442,54 +489,60 @@ export default function BenefitScreen({
   const [detailBenefit, setDetailBenefit] = useState<BenefitItem | null>(null);
   const [conditionBenefit, setConditionBenefit] = useState<BenefitItem | null>(null);
   const [benefits, setBenefits] = useState<BenefitItem[]>([]);
+  const [summary, setSummary] = useState<BenefitSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
  
   const loadBenefits = useCallback(async () => {
+    if (!childId) {
+      setSummary(null);
+      setBenefits([]);
+      setError('자녀 정보를 찾을 수 없어요.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
- 
-      const children = await fetchChildren();
-      console.log('BenefitScreen fetchChildren:', JSON.stringify(children));
-      if (children.length === 0) {
-        setError('자녀 정보를 찾을 수 없어요.');
-        return;
-      }
- 
-      const realChildId = children[0].childId;
-      const matches = await fetchBenefitMatches(realChildId);
-      if (matches.length === 0) {
-        await recalculateBenefits(realChildId);
-        const retried = await fetchBenefitMatches(realChildId);
-        setBenefits(retried.map(toBenefitItem));
-      } else {
-        setBenefits(matches.map(toBenefitItem));
-      }
+
+      await recalculateBenefits(childId);
+      const nextSummary = await fetchBenefitSummary(childId);
+
+      setSummary(nextSummary);
+      setBenefits((nextSummary.benefits ?? []).map(toBenefitItem));
     } catch (e) {
       console.error('혜택 로딩 실패', e);
+      setSummary(null);
+      setBenefits([]);
       setError('혜택 정보를 불러오지 못했어요.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [childId]);
  
   useEffect(() => {
     if (!hasChildInfo) return;
     loadBenefits();
-  }, [hasChildInfo]);
+  }, [hasChildInfo, loadBenefits]);
  
   async function handleRecalculate() {
+    if (!childId) {
+      setError('자녀 정보를 찾을 수 없어요.');
+      return;
+    }
+
     try {
       setLoading(true);
-      const children = await fetchChildren();
-      if (children.length === 0) return;
-      const realChildId = children[0].childId;
-      await recalculateBenefits(realChildId);
-      const matches = await fetchBenefitMatches(realChildId);
-      setBenefits(matches.map(toBenefitItem));
+      setError(null);
+
+      await recalculateBenefits(childId);
+      const nextSummary = await fetchBenefitSummary(childId);
+
+      setSummary(nextSummary);
+      setBenefits((nextSummary.benefits ?? []).map(toBenefitItem));
     } catch (e) {
       console.error('재계산 실패', e);
+      setError('혜택을 다시 계산하지 못했어요.');
     } finally {
       setLoading(false);
     }
@@ -527,10 +580,9 @@ export default function BenefitScreen({
     return true;
   });
  
-  const totalMonthly = benefits.reduce((acc, b) => acc + b.monthlyAmount, 0);
-  const applicableCount = benefits.filter(
-    (b) => b.status === 'APPLICABLE' || b.status === 'FREE',
-  ).length;
+  const totalMonthly = summary?.estimatedMonthlySaving ?? 0;
+  const applicableCount = summary?.applicableCount ?? 0;
+  const conditionCheckCount = summary?.conditionCheckCount ?? 0;
  
   const TABS: { key: FilterTab; label: string }[] = [
     { key: 'all', label: '전체' },
@@ -598,8 +650,10 @@ export default function BenefitScreen({
                   원
                 </Text>
                 <Text style={bStyles.summaryApplicable}>
-                  신청 가능한 혜택{' '}
+                  신청 가능{' '}
                   <Text style={bStyles.summaryApplicableHighlight}>{applicableCount}개</Text>
+                  {' · '}조건 확인{' '}
+                  <Text style={bStyles.summaryApplicableHighlight}>{conditionCheckCount}개</Text>
                 </Text>
               </View>
             </View>
@@ -611,9 +665,23 @@ export default function BenefitScreen({
           <View style={bStyles.summaryMeta}>
             <Ionicons name="person-outline" size={13} color="#aaa" />
             <Text style={bStyles.summaryMetaText}>
-              {childName} · {childAge}세 · {childRegion} 기준
+              {summary?.childName ?? childName ?? '아이'} · {childAge ?? '-'}세 · {childRegion} 기준
             </Text>
           </View>
+
+          {summary?.summaryMessage && (
+            <View style={bStyles.noticeCard}>
+              <Ionicons name="sparkles-outline" size={16} color="#D97706" />
+              <Text style={bStyles.noticeText}>{summary.summaryMessage}</Text>
+            </View>
+          )}
+
+          {summary?.officialCheckMessage && (
+            <View style={bStyles.officialCard}>
+              <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
+              <Text style={bStyles.officialText}>{summary.officialCheckMessage}</Text>
+            </View>
+          )}
  
           <View style={bStyles.tabRow}>
             {TABS.map((tab) => (
@@ -756,8 +824,12 @@ const bStyles = StyleSheet.create({
   summaryDivider:     { width: 1, height: 50, backgroundColor: '#F0F0F0', marginHorizontal: 14 },
   summaryRight:       { alignItems: 'center', justifyContent: 'center' },
   summaryPiggy:       { fontSize: 42 },
-  summaryMeta:     { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, marginBottom: 16, paddingLeft: 2 },
+  summaryMeta:     { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, marginBottom: 10, paddingLeft: 2 },
   summaryMetaText: { fontSize: 12, color: '#aaa' },
+  noticeCard:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FFFBEB', borderRadius: 14, padding: 12, marginBottom: 8 },
+  noticeText:      { flex: 1, fontSize: 12, color: '#92400E', lineHeight: 18, fontWeight: '700' },
+  officialCard:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#EFF6FF', borderRadius: 14, padding: 12, marginBottom: 16 },
+  officialText:    { flex: 1, fontSize: 11.5, color: '#2563EB', lineHeight: 18, fontWeight: '600' },
   tabRow:          { flexDirection: 'row', gap: 8, marginBottom: 18 },
   tabBtn:          { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#F4F4F4' },
   tabBtnActive:    { backgroundColor: '#FFD93D' },
@@ -875,6 +947,9 @@ const cStyles = StyleSheet.create({
   conditionLabel:  { flex: 1, fontSize: 13.5, fontWeight: '600', color: '#1a1a1a' },
   conditionBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
   conditionBadgeText: { fontSize: 11, fontWeight: '700' },
+  conditionNoteCard: { backgroundColor: '#F8FAFC', borderRadius: 16, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#E5E7EB' },
+  conditionNoteTitle: { fontSize: 13.5, fontWeight: '800', color: '#1a1a1a', marginBottom: 6 },
+  conditionNoteText: { fontSize: 12, color: '#555', lineHeight: 19 },
   noteBanner:      { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#EFF6FF', borderRadius: 16, padding: 14, marginTop: 14 },
   noteCharacter:   { width: 44, height: 44 },
   noteText:        { fontSize: 14, color: '#1a1a1a', lineHeight: 21 },
