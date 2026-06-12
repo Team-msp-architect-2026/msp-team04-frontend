@@ -6,6 +6,7 @@ export type ProgramScreenFilter =
   | 'URGENT'
   | 'FREE'
   | 'ONLINE'
+  | 'PUBLIC_SUPPORT';
 
 export interface ProgramListParams {
   status?: ProgramStatus;
@@ -45,6 +46,12 @@ export interface ProgramListItem {
   curriculum: string | null;
   contactPhone: string | null;
   contactUrl: string | null;
+}
+
+export interface ProgramDetailItem extends ProgramListItem {
+  tags: string[];
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface ProgramPage {
@@ -92,6 +99,14 @@ export const getPrograms = async (
 
 export const getHomePrograms = async (): Promise<ApiResponse<HomeProgramsResponse>> => {
   const response = await client.get<ApiResponse<HomeProgramsResponse>>('/programs/home');
+
+  return response.data;
+};
+
+export const getProgramDetail = async (
+  id: number,
+): Promise<ApiResponse<ProgramDetailItem>> => {
+  const response = await client.get<ApiResponse<ProgramDetailItem>>(`/programs/${id}`);
 
   return response.data;
 };
