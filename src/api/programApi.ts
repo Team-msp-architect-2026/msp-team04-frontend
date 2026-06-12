@@ -1,11 +1,17 @@
 import client from './client';
 
 export type ProgramStatus = 'RECRUITING' | 'CLOSED';
+export type ProgramScreenFilter =
+  | 'ALL'
+  | 'URGENT'
+  | 'FREE'
+  | 'ONLINE'
 
 export interface ProgramListParams {
   status?: ProgramStatus;
   category?: string;
   region?: string;
+  filter?: ProgramScreenFilter;
   page?: number;
   size?: number;
   sort?: string;
@@ -14,9 +20,14 @@ export interface ProgramListParams {
 export interface ProgramListItem {
   id: number;
   name: string;
+  institutionName: string | null;
   category: string;
+  programType: string | null;
   price: number | null;
   isFree: boolean;
+  isPublic: boolean | null;
+  targetAgeMin: number | null;
+  targetAgeMax: number | null;
   maxCapacity: number | null;
   remainCapacity: number | null;
   isRecruiting: boolean;
@@ -24,10 +35,16 @@ export interface ProgramListItem {
   detailAddress: string | null;
   imageUrl: string | null;
   classType: string | null;
+  classTime: string | null;
+  operationStart: string | null;
+  operationEnd: string | null;
   deadlineDate: string | null;
   ratingAvg: number | null;
   reviewCount: number | null;
   description: string | null;
+  curriculum: string | null;
+  contactPhone: string | null;
+  contactUrl: string | null;
 }
 
 export interface ProgramPage {
@@ -65,6 +82,7 @@ export const getPrograms = async (
       status: params.status,
       category: params.category,
       region: params.region,
+      filter: params.filter,
       sort: params.sort,
     },
   });

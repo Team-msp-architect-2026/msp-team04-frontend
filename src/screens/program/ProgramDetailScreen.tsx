@@ -27,7 +27,7 @@ export interface ProgramDetail {
   reviewCount: number;
   ageRange: string;
   schedule: string;
-  score: number;
+  score?: number;
   isOpen: boolean;
   tags: string[];
   description: string;
@@ -155,6 +155,8 @@ export default function ProgramDetailScreen({
   >(null);
 
   const matchRate = program.matchRate ?? program.score;
+  const hasMatchRate =
+    typeof matchRate === 'number' && Number.isFinite(matchRate);
   const spotsLeft = Math.max(program.capacity - program.enrolled, 0);
   const safeCapacity = Math.max(program.capacity, 1);
   const enrolledPct = Math.min(
@@ -361,7 +363,9 @@ export default function ProgramDetailScreen({
                 <InfoPill tone="yellow">MoMent 제휴</InfoPill>
               )}
 
-              <InfoPill tone="primary">AI 매칭 {matchRate}%</InfoPill>
+              {hasMatchRate && (
+                <InfoPill tone="primary">AI 매칭 {Math.round(matchRate as number)}%</InfoPill>
+              )}
             </View>
 
             <Text style={styles.organization}>{program.organization}</Text>
