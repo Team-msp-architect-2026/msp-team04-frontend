@@ -669,16 +669,6 @@ export default function ProgramDetailScreen({
                 </View>
               </View>
 
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>위치</Text>
-
-                <View style={styles.mapBox}>
-                  <Ionicons name="location" size={34} color="#CBD5E1" />
-                  <Text style={styles.mapText}>지도 준비중</Text>
-                </View>
-
-                <Text style={styles.addressText}>{resolvedProgram.address}</Text>
-              </View>
 
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>문의</Text>
@@ -1379,28 +1369,8 @@ const styles = StyleSheet.create({
     color: PALETTE.primaryDark,
   },
 
-  mapBox: {
-    height: 136,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    backgroundColor: PALETTE.softBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 
-  mapText: {
-    marginTop: 5,
-    fontSize: 12,
-    fontWeight: '700',
-    color: PALETTE.muted,
-  },
 
-  addressText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: PALETTE.subText,
-  },
 
   contactCard: {
     borderRadius: 18,
