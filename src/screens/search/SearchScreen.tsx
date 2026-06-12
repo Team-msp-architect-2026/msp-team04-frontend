@@ -94,40 +94,15 @@ const formatSchedule = (classType: string | null, deadlineDate: string | null) =
   return `${classTypeLabel} · ${deadlineDate.replace(/-/g, '.')} 마감`;
 };
 
-const calculateMatch = (item: SearchProgramItem, keyword: string) => {
-  const lowerKeyword = keyword.trim().toLowerCase();
-
-  const contains = (value?: string | null) =>
-    !!value && value.toLowerCase().includes(lowerKeyword);
-
-  if (contains(item.name)) {
-    return 97;
-  }
-
-  if (item.tags.some(tag => contains(tag))) {
-    return 94;
-  }
-
-  if (contains(item.institutionName)) {
-    return 91;
-  }
-
-  if (contains(item.description)) {
-    return 88;
-  }
-
-  if (contains(item.region) || contains(item.detailAddress)) {
-    return 86;
-  }
-
-  return item.isRecruiting ? 84 : 76;
+const calculateMatch = (item: SearchProgramItem) => {
+  return Math.max(0, Math.min(100, Math.round(item.matchScore ?? 0)));
 };
 
 const mapSearchItemToProgramDetail = (
   item: SearchProgramItem,
   keyword: string,
 ): SearchResult => {
-  const match = calculateMatch(item, keyword);
+  const match = calculateMatch(item);
   const capacity = item.maxCapacity ?? 0;
   const remainCapacity = item.remainCapacity ?? 0;
   const enrolled =
