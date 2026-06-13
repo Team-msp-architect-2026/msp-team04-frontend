@@ -47,6 +47,11 @@ const MENU_ITEMS: MenuItem[] = [
     label: '저장 목록',
   },
   {
+    id: 'benefitProfile',
+    icon: 'document-text-outline',
+    label: '지원금 진단 정보',
+  },
+  {
     id: 'community',
     icon: 'chatbubble-ellipses-outline',
     label: '커뮤니티 활동',

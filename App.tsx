@@ -61,6 +61,7 @@ import {
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
 import BenefitScreen from './src/screens/BenefitScreen';
+import BenefitProfileInputScreen from './src/screens/benefit/BenefitProfileInputScreen';
 import { tokenStorage } from './src/api/tokenStorage';
 import { fetchChildren, registerChild, updateChild } from './src/api/child';
 
@@ -113,7 +114,8 @@ type Screen =
   | 'myCommunity'
   | 'settings'
   | 'help'
-  | 'benefit';
+  | 'benefit'
+  | 'benefitProfile';
 
 export default function App() {
   useNetworkStatus();
@@ -221,6 +223,9 @@ useEffect(() => {
   const [profileEditBackScreen, setProfileEditBackScreen] =
     useState<Screen>('my');
 
+  const [benefitProfileBackScreen, setBenefitProfileBackScreen] =
+    useState<Screen>('benefit');
+
   const clearApplicationFlow = () => {
     setApplicationInfo(null);
     setCreatedApplication(null);
@@ -314,6 +319,7 @@ const handleDevLogin = () => {
     clearApplicationFlow();
     setSearchState({ query: '', searched: false });
     setProfileEditBackScreen('my');
+    setBenefitProfileBackScreen('benefit');
     setTimeout(() => setCurrentScreen('splash'), 100);
   };
 
@@ -324,6 +330,7 @@ const handleDevLogin = () => {
     setSelectedProgram(null);
     clearApplicationFlow();
     setProfileEditBackScreen('my');
+    setBenefitProfileBackScreen('benefit');
     setCurrentScreen('home');
   };
 
@@ -343,6 +350,7 @@ const handleDevLogin = () => {
     clearApplicationFlow();
     setSearchState({ query: '', searched: false });
     setProfileEditBackScreen('my');
+    setBenefitProfileBackScreen('benefit');
     setTimeout(() => setCurrentScreen('splash'), 100);
   };
 
@@ -586,6 +594,7 @@ const handleDevLogin = () => {
               onEditProfile={(name) => {
                 setEditUserName(name);
                 setProfileEditBackScreen('my');
+    setBenefitProfileBackScreen('benefit');
                 setCurrentScreen('profileEdit');
               }}
               onNavigate={(screen) => {
@@ -596,6 +605,10 @@ const handleDevLogin = () => {
                 if (screen === 'saved') {
                   setSelectedProgram(null);
                   setCurrentScreen('savedList');
+                }
+                if (screen === 'benefitProfile') {
+                  setBenefitProfileBackScreen('my');
+                  setCurrentScreen('benefitProfile');
                 }
                 if (screen === 'community') setCurrentScreen('myCommunity');
                 if (screen === 'notifications') {
@@ -903,7 +916,16 @@ const handleDevLogin = () => {
   <HelpCenterScreen onBack={() => setCurrentScreen('my')} />
 )}
 
-{currentScreen === 'benefit' && (() => {
+{currentScreen === 'benefitProfile' && (
+            <BenefitProfileInputScreen
+              childId={childProfile?.id ?? null}
+              childName={childProfile?.name ?? '아이'}
+              onBack={() => setCurrentScreen(benefitProfileBackScreen)}
+              onSaved={() => setCurrentScreen('benefit')}
+            />
+          )}
+
+          {currentScreen === 'benefit' && (() => {
   console.log('childProfile:', JSON.stringify(childProfile));
   return (
     <BenefitScreen
@@ -915,6 +937,10 @@ const handleDevLogin = () => {
       hasChildInfo={!!childProfile}
       onBack={() => setCurrentScreen('home')}
       onRegisterChild={() => setCurrentScreen('child')}
+      onBenefitProfileInput={() => {
+        setBenefitProfileBackScreen('benefit');
+        setCurrentScreen('benefitProfile');
+      }}
       onNotificationClick={() => setCurrentScreen('notification')}
       onGoRecommendation={() => setCurrentScreen('recommendation')}
       onGoNotificationSettings={() =>

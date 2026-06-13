@@ -53,6 +53,7 @@ interface BenefitScreenProps {
   hasChildInfo?: boolean;
   onBack?: () => void;
   onRegisterChild?: () => void;
+  onBenefitProfileInput?: () => void;
   onNotificationClick?: () => void;
   isLoading?: boolean;
   onGoRecommendation?: () => void;
@@ -479,6 +480,7 @@ export default function BenefitScreen({
   hasChildInfo = true,
   onBack,
   onRegisterChild,
+  onBenefitProfileInput,
   onNotificationClick,
   onGoNotificationSettings,
   onGoMap,
@@ -618,7 +620,7 @@ export default function BenefitScreen({
           <Text style={{ fontSize: 48 }}>🤖</Text>
           <Text style={bStyles.emptyTitle}>아이 정보를 먼저 등록해주세요</Text>
           <Text style={bStyles.emptySub}>아이 정보 등록 후 맞춤 지원 혜택을 확인할 수 있어요</Text>
-          <TouchableOpacity style={bStyles.emptyBtn} onPress={onRegisterChild}>
+          <TouchableOpacity style={bStyles.emptyBtn} onPress={onBenefitProfileInput}>
             <Text style={bStyles.emptyBtnText}>아이 정보 등록하기</Text>
           </TouchableOpacity>
         </View>
@@ -628,6 +630,22 @@ export default function BenefitScreen({
           <Text style={bStyles.emptyTitle}>{error}</Text>
           <TouchableOpacity style={bStyles.emptyBtn} onPress={loadBenefits}>
             <Text style={bStyles.emptyBtnText}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      ) : summary && !summary.profileCompleted ? (
+        <View style={bStyles.emptyBox}>
+          <Ionicons name="document-text-outline" size={52} color="#D97706" />
+          <Text style={bStyles.emptyTitle}>지원금 진단 정보가 필요해요</Text>
+          <Text style={bStyles.emptySub}>
+            거주 지역, 가구 조건, 소득 구간을 입력하면 맞춤 지원 혜택을 확인할 수 있어요.
+          </Text>
+          {summary.summaryMessage && (
+            <Text style={[bStyles.emptySub, { marginTop: 10 }]}>
+              {summary.summaryMessage}
+            </Text>
+          )}
+          <TouchableOpacity style={bStyles.emptyBtn} onPress={onBenefitProfileInput}>
+            <Text style={bStyles.emptyBtnText}>지원금 진단 입력하기</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -698,7 +716,7 @@ export default function BenefitScreen({
             ))}
           </View>
  
-          <Text style={bStyles.sectionTitle}>받을 수 있는 지원 혜택</Text>
+          <Text style={bStyles.sectionTitle}>맞춤 지원 혜택</Text>
           <View style={bStyles.benefitListCard}>
             {filteredBenefits.map((b, idx) => {
               const { bg, text } = statusStyle(b.status);
@@ -767,11 +785,11 @@ export default function BenefitScreen({
               resizeMode="cover"
             />
             <View style={{ flex: 1 }}>
-              <Text style={bStyles.recalcTitle}>아이 정보가 바뀌면{'\n'}혜택도 다시 계산돼요</Text>
-              <Text style={bStyles.recalcSub}>생년월일, 거주지, 가구구성 등이 바뀌면{'\n'}받을 수 있는 혜택이 달라질 수 있어요</Text>
+              <Text style={bStyles.recalcTitle}>지원금 진단 정보가 바뀌면{'\n'}혜택도 다시 확인해요</Text>
+              <Text style={bStyles.recalcSub}>거주 지역, 소득 구간, 가구 조건이 바뀌면{'\n'}맞춤 지원 혜택이 달라질 수 있어요</Text>
             </View>
-            <TouchableOpacity style={bStyles.recalcBtn} onPress={onRegisterChild}>
-              <Text style={bStyles.recalcBtnText}>다시 계산하기</Text>
+            <TouchableOpacity style={bStyles.recalcBtn} onPress={onBenefitProfileInput}>
+              <Text style={bStyles.recalcBtnText}>진단 정보 수정</Text>
             </TouchableOpacity>
           </View>
  
