@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, StatusBar, Image, ActivityIndicator,
+  Linking, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +17,7 @@ type FilterTab = 'all' | 'applicable' | 'condition';
  
 interface Condition {
   id: number;
-  icon: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
   iconBg: string;
   label: string;
   status: 'met' | 'required' | 'pending';
@@ -83,9 +84,28 @@ function getBenefitVisual(
       return { icon: 'wallet-outline', iconBg: '#FFF7E0' };
   }
 }
+
+function formatBenefitType(type?: string | null) {
+  switch (type) {
+    case 'ALLOWANCE':
+    case '지원금':
+      return '지원금';
+    case 'VOUCHER':
+    case '바우처':
+      return '바우처';
+    case 'EDUCATION':
+    case '교육비':
+      return '교육비';
+    case 'FREE_PROGRAM':
+    case '무료 프로그램':
+      return '무료 프로그램';
+    default:
+      return '지원금';
+  }
+}
  
 function toBenefitItem(match: BenefitMatch): BenefitItem {
-  const displayType = match.benefitType ?? '지원금';
+  const displayType = formatBenefitType(match.benefitType);
   const { icon, iconBg } = getBenefitVisual(displayType);
 
   return {
@@ -104,15 +124,15 @@ function toBenefitItem(match: BenefitMatch): BenefitItem {
     targets: match.conditionDescription ? [match.conditionDescription] : [],
     documents: [],
     steps: match.applyLink
-      ? ['공식 신청 페이지에서 자격 조건 확인', '필요 서류 확인', '신청 진행']
-      : [],
+      ? ['공식 신청 페이지에서 자격 조건 확인', '필요 서류는 공식 사이트에서 확인', '공식 사이트에서 신청 진행']
+      : ['공식 사이트에서 자격 조건과 필요 서류를 확인해주세요'],
     conditions:
       match.matchStatus === 'CONDITION_CHECK'
         ? [
             {
               id: 1,
-              icon: '📋',
-              iconBg: '#EBF4FF',
+              icon: 'clipboard-outline',
+              iconBg: '#F4F7FB',
               label: '공식 자격 조건 확인 필요',
               status: 'pending',
             },
@@ -169,7 +189,7 @@ function BenefitDetailView({
   onNotificationClick?: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [openSections, setOpenSections] = useState<Set<number>>(new Set([0, 2]));
+  const [openSections, setOpenSections] = useState<Set<number>>(new Set([0, 1, 2]));
  
   function toggleSection(idx: number) {
     setOpenSections((prev) => {
@@ -179,29 +199,57 @@ function BenefitDetailView({
     });
   }
  
-  const sections = [
+  const sectionsBase: Array<{
+    label: string;
+    icon: React.ComponentProps<typeof Ionicons>['name'];
+    iconBg: string;
+    items: string[];
+    steps?: string[];
+    hideWhenEmpty?: boolean;
+  }> = [
     {
       label: '지원 대상',
-      icon: '👥',
-      iconBg: '#EAFBF3',
+      icon: 'people-outline',
+      iconBg: '#F4FBF7',
       items: benefit.targets ?? [],
     },
     {
       label: '준비 서류',
-      icon: '📄',
-      iconBg: '#EBF4FF',
+      icon: 'document-text-outline',
+      iconBg: '#F4F7FB',
       items: benefit.documents ?? [],
+      hideWhenEmpty: true,
     },
     {
       label: '신청 방법',
-      icon: '✏️',
-      iconBg: '#F3EEFF',
+      icon: 'pencil-outline',
+      iconBg: '#F7F3FF',
       items: [],
       steps: benefit.steps ?? [],
     },
   ];
+
+  const sections = sectionsBase.filter((sec) => {
+    if (!sec.hideWhenEmpty) return true;
+    return sec.items.length > 0 || (sec.steps?.length ?? 0) > 0;
+  });
  
   const { bg, text } = statusStyle(benefit.status);
+
+  async function openOfficialSite() {
+    if (!benefit.applyLink) {
+      Alert.alert('공식 사이트 정보가 없어요', '이 혜택은 현재 연결 가능한 공식 신청 페이지 정보가 없어요.');
+      return;
+    }
+
+    const canOpen = await Linking.canOpenURL(benefit.applyLink);
+    if (!canOpen) {
+      Alert.alert('링크를 열 수 없어요', '공식 사이트 주소를 확인할 수 없어요.');
+      return;
+    }
+
+    await Linking.openURL(benefit.applyLink);
+  }
  
   return (
     <View style={[dStyles.container, { paddingTop: insets.top }]}>
@@ -210,7 +258,7 @@ function BenefitDetailView({
         <TouchableOpacity onPress={onBack} style={dStyles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#222" />
         </TouchableOpacity>
-        <Text style={dStyles.headerTitle}>혜택 신청</Text>
+        <Text style={dStyles.headerTitle}>혜택 안내</Text>
         <TouchableOpacity style={dStyles.bellBtn} onPress={onNotificationClick}>
           <Ionicons name="notifications" size={22} color="#555" />
           <View style={dStyles.notiBadge} />
@@ -263,7 +311,7 @@ function BenefitDetailView({
               activeOpacity={0.75}
             >
               <View style={[dStyles.accordionIconBox, { backgroundColor: sec.iconBg }]}>
-                <Text style={dStyles.accordionIcon}>{sec.icon}</Text>
+                <Ionicons name={sec.icon} size={21} color="#4B5563" />
               </View>
               <Text style={dStyles.accordionTitle}>{`${idx + 1}. ${sec.label}`}</Text>
               <Ionicons
@@ -304,18 +352,23 @@ function BenefitDetailView({
         ))}
  
         <View style={dStyles.infoBanner}>
-          <Text style={dStyles.infoBannerEmoji}>💡</Text>
-          <View>
-            <Text style={dStyles.infoBannerTitle}>조건이 맞으면 온라인 신청이 가능해요</Text>
-            <Text style={dStyles.infoBannerSub}>제출 서류는 스캔 또는 사진으로 업로드하면 돼요.</Text>
+          <View style={dStyles.infoIconBox}>
+            <Ionicons name="information-circle-outline" size={18} color="#6B7280" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={dStyles.infoBannerTitle}>MoMent는 신청 전 안내만 제공해요</Text>
+            <Text style={dStyles.infoBannerSub}>최종 신청 가능 여부와 정확한 금액은 공식 사이트에서 확인해주세요.</Text>
           </View>
         </View>
  
-        <TouchableOpacity style={dStyles.ctaBtn} activeOpacity={0.85}>
-          <Text style={dStyles.ctaBtnText}>신청하러 가기</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={dStyles.secondaryBtn} activeOpacity={0.85}>
-          <Text style={dStyles.secondaryBtnText}>나중에 보기</Text>
+        <TouchableOpacity
+          style={[dStyles.ctaBtn, !benefit.applyLink && dStyles.ctaBtnDisabled]}
+          activeOpacity={0.85}
+          onPress={openOfficialSite}
+        >
+          <Text style={dStyles.ctaBtnText}>
+            {benefit.applyLink ? '공식 사이트에서 확인하기' : '공식 사이트 정보 없음'}
+          </Text>
         </TouchableOpacity>
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -360,29 +413,26 @@ function BenefitConditionView({
               <View style={cStyles.statusBadge}>
                 <Text style={cStyles.statusBadgeText}>조건 확인</Text>
               </View>
-              {benefit.description && (
-                <Text style={cStyles.summaryDesc}>{benefit.description}</Text>
-              )}
             </View>
           </View>
           <View style={cStyles.divider} />
-          <View style={cStyles.amountRow}>
-            <View>
-              <Text style={cStyles.amountLabel}>예상 월 절감액</Text>
-              <Text style={cStyles.amountValue}>{formatAmount(benefit.monthlyAmount)}원</Text>
-            </View>
-            {benefit.yearlyMax && (
-              <View style={cStyles.yearlyBox}>
-                <View style={cStyles.yearlyIconWrap}>
-                  <Ionicons name="wallet" size={18} color="#3B82F6" />
-                </View>
-                <View>
-                  <Text style={cStyles.yearlyLabel}>연 최대</Text>
-                  <Text style={cStyles.yearlyValue}>{formatAmount(benefit.yearlyMax)}원</Text>
-                </View>
-              </View>
-            )}
+          <View style={cStyles.summaryInfoRow}>
+            <Ionicons name="cash-outline" size={16} color="#3B82F6" />
+            <Text style={cStyles.summaryInfoLabel}>예상 월 절감액</Text>
+            <Text style={cStyles.summaryInfoValue}>{formatAmount(benefit.monthlyAmount)}원</Text>
           </View>
+          <View style={cStyles.summaryInfoRow}>
+            <Ionicons name="pricetag-outline" size={16} color="#8E8E93" />
+            <Text style={cStyles.summaryInfoLabel}>지원 유형</Text>
+            <Text style={cStyles.summaryInfoValueDark}>{benefit.type}</Text>
+          </View>
+          {benefit.region && (
+            <View style={cStyles.summaryInfoRow}>
+              <Ionicons name="location-outline" size={16} color="#8E8E93" />
+              <Text style={cStyles.summaryInfoLabel}>제공 기관/지역</Text>
+              <Text style={cStyles.summaryInfoValueDark}>{benefit.region}</Text>
+            </View>
+          )}
         </View>
  
         <Text style={cStyles.sectionTitle}>신청 자격 조건 확인</Text>
@@ -399,7 +449,7 @@ function BenefitConditionView({
                 activeOpacity={0.75}
               >
                 <View style={[cStyles.conditionIconBox, { backgroundColor: cond.iconBg }]}>
-                  <Text style={cStyles.conditionIcon}>{cond.icon}</Text>
+                  <Ionicons name={cond.icon} size={20} color="#4B5563" />
                 </View>
                 <Text style={cStyles.conditionLabel}>{cond.label}</Text>
                 <View style={[cStyles.conditionBadge, { backgroundColor: ci.bg }]}>
@@ -569,11 +619,8 @@ export default function BenefitScreen({
   }
  
   function handleBenefitPress(b: BenefitItem) {
-    if (b.status === 'CONDITION_CHECK') {
-      setConditionBenefit(b);
-    } else {
-      setDetailBenefit(b);
-    }
+    setConditionBenefit(null);
+    setDetailBenefit(b);
   }
  
   const filteredBenefits = benefits.filter((b) => {
@@ -1052,38 +1099,39 @@ const dStyles = StyleSheet.create({
   headerTitle:     { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: '#1a1a1a' },
   bellBtn:         { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   notiBadge:       { position: 'absolute', top: 8, right: 8, width: 7, height: 7, borderRadius: 4, backgroundColor: '#f87171', borderWidth: 2, borderColor: '#fff' },
-  summaryCard:     { borderRadius: 18, borderWidth: 1.5, borderColor: '#FFD93D', padding: 16, marginBottom: 14, backgroundColor: '#fff', ...SHADOW },
+  summaryCard:     { borderRadius: 24, borderWidth: 1, borderColor: '#E8EAEE', padding: 18, marginBottom: 16, backgroundColor: '#fff', ...SHADOW },
   summaryTop:      { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  summaryIconBox:  { width: 60, height: 60, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  summaryIconBox:  { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   summaryIcon:     { fontSize: 30 },
-  summaryTitle:    { fontSize: 16, fontWeight: '800', color: '#1a1a1a', marginBottom: 6 },
+  summaryTitle:    { fontSize: 17, fontWeight: '900', color: '#111827', marginBottom: 7, letterSpacing: -0.2 },
   statusBadge:     { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
   statusBadgeText: { fontSize: 11.5, fontWeight: '800' },
-  divider:         { height: 1, backgroundColor: '#F0F1F3', marginBottom: 12 },
-  summaryRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  summaryLabel:    { flex: 1, fontSize: 13, color: '#888' },
-  summaryValue:    { fontSize: 16, fontWeight: '800', color: '#FFB020' },
-  summaryValueDark: { fontSize: 13.5, fontWeight: '700', color: '#1a1a1a' },
-  accordionCard:   { backgroundColor: '#fff', borderRadius: 18, marginBottom: 10, overflow: 'hidden', ...SHADOW },
-  accordionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  accordionIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  divider:         { height: 1, backgroundColor: '#F0F1F3', marginBottom: 14 },
+  summaryRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  summaryLabel:    { flex: 1, fontSize: 13, color: '#8E8E93', fontWeight: '600' },
+  summaryValue:    { fontSize: 16, fontWeight: '900', color: '#111827' },
+  summaryValueDark: { fontSize: 13.5, fontWeight: '800', color: '#111827', flexShrink: 1, textAlign: 'right' },
+  accordionCard:   { backgroundColor: '#fff', borderRadius: 22, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#EEF0F3' },
+  accordionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 15, paddingVertical: 16 },
+  accordionIconBox: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   accordionIcon:   { fontSize: 22 },
-  accordionTitle:  { flex: 1, fontSize: 14.5, fontWeight: '700', color: '#1a1a1a' },
-  accordionBody:   { paddingHorizontal: 14, paddingBottom: 14 },
+  accordionTitle:  { flex: 1, fontSize: 14.5, fontWeight: '900', color: '#111827' },
+  accordionBody:   { paddingHorizontal: 16, paddingBottom: 16 },
   bulletRow:       { flexDirection: 'row', gap: 8, marginBottom: 6, alignItems: 'flex-start' },
   bullet:          { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFD93D', marginTop: 6 },
-  bulletText:      { flex: 1, fontSize: 13, color: '#555', lineHeight: 20 },
+  bulletText:      { flex: 1, fontSize: 13, color: '#5F6672', lineHeight: 21, fontWeight: '500' },
   stepsRow:        { flexDirection: 'row', alignItems: 'flex-start', gap: 4, justifyContent: 'center' },
   stepItem:        { alignItems: 'center', gap: 6, flex: 1 },
   stepCircle:      { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3EEFF', alignItems: 'center', justifyContent: 'center' },
   stepNum:         { fontSize: 14, fontWeight: '700', color: '#8B5CF6' },
   stepLabel:       { fontSize: 11, color: '#555', textAlign: 'center' },
-  infoBanner:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: '#FFFBEB', borderRadius: 16, padding: 14, marginBottom: 14 },
-  infoBannerEmoji: { fontSize: 28 },
-  infoBannerTitle: { fontSize: 14, fontWeight: '700', color: '#1a1a1a' },
-  infoBannerSub:   { fontSize: 12, color: '#999', marginTop: 4 },
-  ctaBtn:          { backgroundColor: '#FFA500', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 10 },
-  ctaBtnText:      { fontSize: 15, fontWeight: '800', color: '#fff' },
+  infoBanner:      { flexDirection: 'row', alignItems: 'flex-start', gap: 11, backgroundColor: '#F8F9FB', borderRadius: 20, padding: 15, marginTop: 8, marginBottom: 14, borderWidth: 1, borderColor: '#EEF0F3' },
+  infoIconBox:     { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#EEF0F3' },
+  infoBannerTitle: { fontSize: 14, fontWeight: '900', color: '#111827' },
+  infoBannerSub:   { fontSize: 12, color: '#6B7280', marginTop: 5, lineHeight: 18, fontWeight: '600' },
+  ctaBtn:          { backgroundColor: '#111827', borderRadius: 18, padding: 16, alignItems: 'center', marginBottom: 10 },
+  ctaBtnText:      { fontSize: 15, fontWeight: '900', color: '#fff' },
+  ctaBtnDisabled:  { backgroundColor: '#C7CBD1' },
   secondaryBtn:    { borderRadius: 16, borderWidth: 1.5, borderColor: '#FFA500', padding: 15, alignItems: 'center' },
   secondaryBtnText: { fontSize: 15, fontWeight: '700', color: '#FFA500' },
 });
@@ -1106,6 +1154,10 @@ const cStyles = StyleSheet.create({
   statusBadge:     { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#DBEAFE' },
   statusBadgeText: { fontSize: 11, fontWeight: '700', color: '#3B82F6' },
   divider:         { height: 1, backgroundColor: '#F0F1F3', marginBottom: 14 },
+  summaryInfoRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 9 },
+  summaryInfoLabel: { flex: 1, fontSize: 13, color: '#8E8E93', fontWeight: '600' },
+  summaryInfoValue: { fontSize: 15, fontWeight: '900', color: '#3B82F6' },
+  summaryInfoValueDark: { fontSize: 13.5, fontWeight: '800', color: '#111827', flexShrink: 1, textAlign: 'right' },
   amountRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   amountLabel:     { fontSize: 11.5, color: '#888', marginBottom: 2 },
   amountValue:     { fontSize: 22, fontWeight: '900', color: '#3B82F6' },
