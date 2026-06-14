@@ -281,7 +281,7 @@ function BenefitDetailView({
           <View style={dStyles.divider} />
           <View style={dStyles.summaryRow}>
             <Ionicons name="cash-outline" size={16} color="#FFB020" />
-            <Text style={dStyles.summaryLabel}>예상 월 절감액</Text>
+            <Text style={dStyles.summaryLabel}>예상 월 지원금</Text>
             <Text style={dStyles.summaryValue}>{formatAmount(benefit.monthlyAmount)}원</Text>
           </View>
           <View style={dStyles.summaryRow}>
@@ -418,7 +418,7 @@ function BenefitConditionView({
           <View style={cStyles.divider} />
           <View style={cStyles.summaryInfoRow}>
             <Ionicons name="cash-outline" size={16} color="#3B82F6" />
-            <Text style={cStyles.summaryInfoLabel}>예상 월 절감액</Text>
+            <Text style={cStyles.summaryInfoLabel}>예상 월 지원금</Text>
             <Text style={cStyles.summaryInfoValue}>{formatAmount(benefit.monthlyAmount)}원</Text>
           </View>
           <View style={cStyles.summaryInfoRow}>
@@ -629,7 +629,14 @@ export default function BenefitScreen({
     return true;
   });
  
-  const totalMonthly = summary?.estimatedMonthlySaving ?? 0;
+  const confirmedMonthly = benefits
+    .filter((b) => b.status === 'APPLICABLE')
+    .reduce((sum, b) => sum + (b.monthlyAmount ?? 0), 0);
+
+  const potentialMonthly = benefits
+    .filter((b) => b.status === 'CONDITION_CHECK')
+    .reduce((sum, b) => sum + (b.monthlyAmount ?? 0), 0);
+
   const applicableCount = summary?.applicableCount ?? 0;
   const conditionCheckCount = summary?.conditionCheckCount ?? 0;
  
@@ -706,9 +713,9 @@ export default function BenefitScreen({
                 <Ionicons name="wallet-outline" size={22} color="#111827" />
               </View>
               <View style={bStyles.summaryTextArea}>
-                <Text style={bStyles.summaryAmountLabel}>예상 월 절감액</Text>
+                <Text style={bStyles.summaryAmountLabel}>확정 예상 지원금</Text>
                 <Text style={bStyles.summaryAmount}>
-                  월 <Text style={bStyles.summaryAmountHighlight}>{formatAmount(totalMonthly)}</Text>원
+                  월 <Text style={bStyles.summaryAmountHighlight}>{formatAmount(confirmedMonthly)}</Text>원
                 </Text>
               </View>
             </View>
@@ -724,6 +731,15 @@ export default function BenefitScreen({
                 <Text style={bStyles.summaryStatLabel}>조건 확인</Text>
               </View>
             </View>
+
+            {potentialMonthly > 0 && (
+              <View style={bStyles.summaryPotentialBox}>
+                <Ionicons name="information-circle-outline" size={14} color="#8E8E93" />
+                <Text style={bStyles.summaryPotentialText}>
+                  조건 확인 시 월 {formatAmount(potentialMonthly)}원까지 추가 가능해요.
+                </Text>
+              </View>
+            )}
           </View>
           <View style={bStyles.summaryMeta}>
             <Ionicons name="person-outline" size={13} color="#aaa" />
@@ -940,6 +956,25 @@ const bStyles = StyleSheet.create({
   summaryStatValue: { fontSize: 20, fontWeight: '900', color: '#111827' },
   summaryStatLabel: { marginTop: 3, fontSize: 12, fontWeight: '700', color: '#8E8E93' },
   summaryStatDivider: { width: 1, height: 34, backgroundColor: '#EEF0F3' },
+  summaryPotentialBox: {
+    marginTop: 12,
+    borderRadius: 14,
+    backgroundColor: '#F8F9FB',
+    borderWidth: 1,
+    borderColor: '#EEF0F3',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  summaryPotentialText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8E8E93',
+    lineHeight: 18,
+  },
   summaryMeta: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -225,6 +225,8 @@ useEffect(() => {
 
   const [benefitProfileBackScreen, setBenefitProfileBackScreen] =
     useState<Screen>('benefit');
+  const [benefitProfileNextScreen, setBenefitProfileNextScreen] =
+    useState<Screen>('benefit');
 
   const clearApplicationFlow = () => {
     setApplicationInfo(null);
@@ -471,7 +473,16 @@ const handleDevLogin = () => {
               onNotificationClick={() => setCurrentScreen('notification')}
               onMapClick={() => setCurrentScreen('map')}
               onSupportClick={() => setCurrentScreen('benefit')}
-              onAiReportClick={() => setCurrentScreen('aiReport')}
+              onAiReportClick={() => {
+                if (!childProfile?.id) {
+                  setCurrentScreen('child');
+                  return;
+                }
+
+                setBenefitProfileBackScreen('home');
+                setBenefitProfileNextScreen('aiReport');
+                setCurrentScreen('benefitProfile');
+              }}
               onSearchClick={() => setCurrentScreen('search')}
               onUrgentMoreClick={() => {
       setApplyInitialFilter('urgent');
@@ -608,6 +619,7 @@ const handleDevLogin = () => {
                 }
                 if (screen === 'benefitProfile') {
                   setBenefitProfileBackScreen('my');
+                  setBenefitProfileNextScreen('benefit');
                   setCurrentScreen('benefitProfile');
                 }
                 if (screen === 'community') setCurrentScreen('myCommunity');
@@ -807,6 +819,7 @@ const handleDevLogin = () => {
 
           {currentScreen === 'aiReport' && (
             <AiReportScreen
+              childId={childProfile?.id ?? null}
               childInfo={{
                 name: childProfile?.name ?? '아이',
                 age: childProfile?.age ?? 0,
@@ -814,6 +827,8 @@ const handleDevLogin = () => {
               }}
               userName="정아름"
               onBack={() => setCurrentScreen('home')}
+              onSelectBenefit={() => setCurrentScreen('benefit')}
+              onSelectFreePrograms={() => setCurrentScreen('apply')}
               onSelectProgram={() => setCurrentScreen('recommend')}
             />
           )}
@@ -921,7 +936,11 @@ const handleDevLogin = () => {
               childId={childProfile?.id ?? null}
               childName={childProfile?.name ?? '아이'}
               onBack={() => setCurrentScreen(benefitProfileBackScreen)}
-              onSaved={() => setCurrentScreen('benefit')}
+              onSaved={() => {
+                const nextScreen = benefitProfileNextScreen;
+                setBenefitProfileNextScreen('benefit');
+                setCurrentScreen(nextScreen);
+              }}
             />
           )}
 
@@ -939,6 +958,7 @@ const handleDevLogin = () => {
       onRegisterChild={() => setCurrentScreen('child')}
       onBenefitProfileInput={() => {
         setBenefitProfileBackScreen('benefit');
+        setBenefitProfileNextScreen('benefit');
         setCurrentScreen('benefitProfile');
       }}
       onNotificationClick={() => setCurrentScreen('notification')}
