@@ -267,12 +267,15 @@ export const recommendationApi = {
 
   getProgramReason: async (
     programId: number,
-    preferenceId: number,
+    params: { preferenceId?: number | null; childId?: number | null },
   ): Promise<ProgramReasonResponse> => {
     const response = await client.get<ApiResponse<ProgramReasonResponse>>(
       `/api/programs/${programId}/ai-reason`,
       {
-        params: { preferenceId },
+        params: {
+          preferenceId: params.preferenceId ?? undefined,
+          childId: params.childId ?? undefined,
+        },
       },
     );
 

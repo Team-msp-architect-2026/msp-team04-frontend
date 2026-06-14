@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   View,
@@ -33,20 +33,12 @@ interface SearchResult extends ProgramDetail {
   imageUrl?: string | null;
 }
 
-const FALLBACK_AI_SUGGESTIONS = [
-  '선생님 피드백 좋은 소규모 미술 수업',
-  '집 근처 무료 공공 프로그램',
-  '주말에 가능한 창의력 수업',
-  '언어 자극에 도움되는 독서 프로그램',
-];
-
 const QUICK_CONDITIONS = [
   '무료 프로그램',
-  '주말 수업',
-  '집 근처',
-  '소규모 수업',
-  '3~5세',
+  '소규모',
   '공공기관',
+  '주말 프로그램',
+  '놀이',
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -102,40 +94,15 @@ const formatSchedule = (classType: string | null, deadlineDate: string | null) =
   return `${classTypeLabel} · ${deadlineDate.replace(/-/g, '.')} 마감`;
 };
 
-const calculateMatch = (item: SearchProgramItem, keyword: string) => {
-  const lowerKeyword = keyword.trim().toLowerCase();
-
-  const contains = (value?: string | null) =>
-    !!value && value.toLowerCase().includes(lowerKeyword);
-
-  if (contains(item.name)) {
-    return 97;
-  }
-
-  if (item.tags.some(tag => contains(tag))) {
-    return 94;
-  }
-
-  if (contains(item.institutionName)) {
-    return 91;
-  }
-
-  if (contains(item.description)) {
-    return 88;
-  }
-
-  if (contains(item.region) || contains(item.detailAddress)) {
-    return 86;
-  }
-
-  return item.isRecruiting ? 84 : 76;
+const calculateMatch = (item: SearchProgramItem) => {
+  return Math.max(0, Math.min(100, Math.round(item.matchScore ?? 0)));
 };
 
 const mapSearchItemToProgramDetail = (
   item: SearchProgramItem,
   keyword: string,
 ): SearchResult => {
-  const match = calculateMatch(item, keyword);
+  const match = calculateMatch(item);
   const capacity = item.maxCapacity ?? 0;
   const remainCapacity = item.remainCapacity ?? 0;
   const enrolled =
@@ -201,15 +168,19 @@ export default function SearchScreen({
   const [searched, setSearched] = useState(initialSearched);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [aiSuggestionsLoading, setAiSuggestionsLoading] = useState(false);
+  const [aiSuggestionsError, setAiSuggestionsError] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [resultTotal, setResultTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [recentLoading, setRecentLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const loadingMoreRef = useRef(false);
 
   const trimmedQuery = query.trim();
-  const aiSuggestionKeywords =
-    aiSuggestions.length > 0 ? aiSuggestions : FALLBACK_AI_SUGGESTIONS;
 
   const resultCountLabel = useMemo(() => {
     if (!trimmedQuery) {
@@ -233,6 +204,9 @@ export default function SearchScreen({
 
   const loadSearchSuggestions = async () => {
     try {
+      setAiSuggestionsLoading(true);
+      setAiSuggestionsError(false);
+
       const suggestionItems = await searchApi.getSearchSuggestions();
       const keywords = suggestionItems
         .map(item => item.keyword.trim())
@@ -244,6 +218,9 @@ export default function SearchScreen({
     } catch (error) {
       console.warn('AI 추천 검색어 조회 실패:', error);
       setAiSuggestions([]);
+      setAiSuggestionsError(true);
+    } finally {
+      setAiSuggestionsLoading(false);
     }
   };
 
@@ -255,7 +232,9 @@ export default function SearchScreen({
     }
 
     try {
+      loadingMoreRef.current = false;
       setLoading(true);
+      setLoadingMore(false);
       setErrorMessage('');
       setQuery(normalizedQuery);
       setSearched(true);
@@ -268,14 +247,61 @@ export default function SearchScreen({
 
       setResults(mappedResults);
       setResultTotal(page.totalElements);
+      setCurrentPage(page.number);
+      setTotalPages(page.totalPages);
       await loadRecentSearches();
     } catch (error) {
       console.warn('검색 실패:', error);
       setResults([]);
       setResultTotal(0);
+      setCurrentPage(0);
+      setTotalPages(0);
       setErrorMessage('검색 결과를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreResults = async () => {
+    const normalizedQuery = query.trim();
+    const nextPage = currentPage + 1;
+
+    if (
+      !searched ||
+      loading ||
+      loadingMoreRef.current ||
+      !normalizedQuery ||
+      totalPages === 0 ||
+      nextPage >= totalPages
+    ) {
+      return;
+    }
+
+    try {
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+      setErrorMessage('');
+
+      const page = await searchApi.searchPrograms(normalizedQuery, nextPage, 10);
+      const mappedResults = page.content.map(item =>
+        mapSearchItemToProgramDetail(item, normalizedQuery),
+      );
+
+      setResults(prevResults => {
+        const existingIds = new Set(prevResults.map(item => item.id));
+        const nextResults = mappedResults.filter(item => !existingIds.has(item.id));
+
+        return [...prevResults, ...nextResults];
+      });
+      setResultTotal(page.totalElements);
+      setCurrentPage(page.number);
+      setTotalPages(page.totalPages);
+    } catch (error) {
+      console.warn('추가 검색 결과 조회 실패:', error);
+      setErrorMessage('추가 검색 결과를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
   };
 
@@ -355,7 +381,7 @@ export default function SearchScreen({
 
           <TextInput
             style={styles.input}
-            placeholder="선생님 피드백 좋은 소규모 미술 수업"
+            placeholder="무료 프로그램"
             placeholderTextColor="#A8B0BD"
             value={query}
             onChangeText={value => {
@@ -410,6 +436,16 @@ export default function SearchScreen({
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={400}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const isNearBottom =
+            layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
+
+          if (isNearBottom) {
+            loadMoreResults();
+          }
+        }}
       >
         {!searched ? (
           <View style={styles.readyContent}>
@@ -470,22 +506,39 @@ export default function SearchScreen({
               </View>
 
               <View style={styles.suggestionList}>
-                {aiSuggestionKeywords.map(item => (
-                  <TouchableOpacity
-                    key={item}
-                    style={styles.suggestionItem}
-                    onPress={() => handleSearch(item)}
-                    activeOpacity={0.75}
-                  >
-                    <View style={styles.suggestionDot} />
-
-                    <Text style={styles.suggestionText} numberOfLines={1}>
-                      {item}
+                {aiSuggestionsLoading ? (
+                  <View style={styles.suggestionStatusRow}>
+                    <ActivityIndicator size="small" color="#A8B0BD" />
+                    <Text style={styles.suggestionStatusText}>
+                      맞춤 추천어를 불러오는 중이에요
                     </Text>
+                  </View>
+                ) : aiSuggestionsError ? (
+                  <Text style={styles.suggestionStatusText}>
+                    추천어를 불러오지 못했어요
+                  </Text>
+                ) : aiSuggestions.length === 0 ? (
+                  <Text style={styles.suggestionStatusText}>
+                    아직 추천어가 없어요
+                  </Text>
+                ) : (
+                  aiSuggestions.map(item => (
+                    <TouchableOpacity
+                      key={item}
+                      style={styles.suggestionItem}
+                      onPress={() => handleSearch(item)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.suggestionDot} />
 
-                    <Ionicons name="chevron-forward" size={15} color="#C5CCD6" />
-                  </TouchableOpacity>
-                ))}
+                      <Text style={styles.suggestionText} numberOfLines={1}>
+                        {item}
+                      </Text>
+
+                      <Ionicons name="chevron-forward" size={15} color="#C5CCD6" />
+                    </TouchableOpacity>
+                  ))
+                )}
               </View>
             </View>
 
@@ -525,8 +578,9 @@ export default function SearchScreen({
                 <Text style={styles.loadingText}>검색 결과 불러오는 중</Text>
               </View>
             ) : results.length > 0 ? (
-              <View style={styles.resultList}>
-                {results.map(program => (
+              <>
+                <View style={styles.resultList}>
+                  {results.map(program => (
                   <TouchableOpacity
                     key={program.id}
                     style={styles.resultCard}
@@ -575,8 +629,16 @@ export default function SearchScreen({
                       </View>
                     </View>
                   </TouchableOpacity>
-                ))}
-              </View>
+                  ))}
+                </View>
+
+                {loadingMore && (
+                  <View style={styles.loadingMoreRow}>
+                    <ActivityIndicator size="small" color="#1479B8" />
+                    <Text style={styles.loadingText}>검색 결과 더 불러오는 중</Text>
+                  </View>
+                )}
+              </>
             ) : (
               <View style={styles.emptyResult}>
                 <Ionicons name="search-outline" size={32} color="#CBD5E1" />
@@ -1007,6 +1069,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#374151',
+  },
+
+  suggestionStatusRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+  },
+
+  suggestionStatusText: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+
+  loadingMoreRow: {
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
 
   emptyResult: {

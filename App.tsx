@@ -61,6 +61,7 @@ import {
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
 import BenefitScreen from './src/screens/BenefitScreen';
+import BenefitProfileInputScreen from './src/screens/benefit/BenefitProfileInputScreen';
 import { tokenStorage } from './src/api/tokenStorage';
 import { fetchChildren, registerChild, updateChild } from './src/api/child';
 
@@ -113,7 +114,8 @@ type Screen =
   | 'myCommunity'
   | 'settings'
   | 'help'
-  | 'benefit';
+  | 'benefit'
+  | 'benefitProfile';
 
 export default function App() {
   useNetworkStatus();
@@ -221,6 +223,11 @@ useEffect(() => {
   const [profileEditBackScreen, setProfileEditBackScreen] =
     useState<Screen>('my');
 
+  const [benefitProfileBackScreen, setBenefitProfileBackScreen] =
+    useState<Screen>('benefit');
+  const [benefitProfileNextScreen, setBenefitProfileNextScreen] =
+    useState<Screen>('benefit');
+
   const clearApplicationFlow = () => {
     setApplicationInfo(null);
     setCreatedApplication(null);
@@ -314,6 +321,7 @@ const handleDevLogin = () => {
     clearApplicationFlow();
     setSearchState({ query: '', searched: false });
     setProfileEditBackScreen('my');
+    setBenefitProfileBackScreen('benefit');
     setTimeout(() => setCurrentScreen('splash'), 100);
   };
 
@@ -324,6 +332,7 @@ const handleDevLogin = () => {
     setSelectedProgram(null);
     clearApplicationFlow();
     setProfileEditBackScreen('my');
+    setBenefitProfileBackScreen('benefit');
     setCurrentScreen('home');
   };
 
@@ -343,6 +352,7 @@ const handleDevLogin = () => {
     clearApplicationFlow();
     setSearchState({ query: '', searched: false });
     setProfileEditBackScreen('my');
+    setBenefitProfileBackScreen('benefit');
     setTimeout(() => setCurrentScreen('splash'), 100);
   };
 
@@ -463,7 +473,16 @@ const handleDevLogin = () => {
               onNotificationClick={() => setCurrentScreen('notification')}
               onMapClick={() => setCurrentScreen('map')}
               onSupportClick={() => setCurrentScreen('benefit')}
-              onAiReportClick={() => setCurrentScreen('aiReport')}
+              onAiReportClick={() => {
+                if (!childProfile?.id) {
+                  setCurrentScreen('child');
+                  return;
+                }
+
+                setBenefitProfileBackScreen('home');
+                setBenefitProfileNextScreen('aiReport');
+                setCurrentScreen('benefitProfile');
+              }}
               onSearchClick={() => setCurrentScreen('search')}
               onUrgentMoreClick={() => {
       setApplyInitialFilter('urgent');
@@ -503,42 +522,21 @@ const handleDevLogin = () => {
                   setRecommendationLoading(true);
 
                   const preferenceRequest = buildPreferenceRequest(
-  childProfile.id,
-  data,
-);
+                    childProfile.id,
+                    data,
+                  );
+                  const preferenceId =
+                    await recommendationApi.savePreference(preferenceRequest);
+                  const recommendationPage =
+                    await recommendationApi.getRecommendations(
+                      childProfile.id,
+                      preferenceId,
+                      0,
+                      20,
+                    );
 
-console.log('추천 선호도 요청값:', JSON.stringify(preferenceRequest, null, 2));
-
-const preferenceId =
-  await recommendationApi.savePreference(preferenceRequest);
-
-console.log('저장된 preferenceId:', preferenceId);
-
-const recommendationPage =
-  await recommendationApi.getRecommendations(
-    childProfile.id,
-    preferenceId,
-    0,
-    20,
-  );
-
-console.log(
-  '추천 결과 imageUrl 확인:',
-  JSON.stringify(
-    recommendationPage.content.map((item) => ({
-      rankNo: item.rankNo,
-      programId: item.programId,
-      title: item.title,
-      category: item.category,
-      imageUrl: item.imageUrl,
-    })),
-    null,
-    2,
-  ),
-);
-
-setRecommendationPreferenceId(preferenceId);
-setRecommendationItems(recommendationPage.content);
+                  setRecommendationPreferenceId(preferenceId);
+                  setRecommendationItems(recommendationPage.content);
                 } catch (error) {
                   console.error('추천 결과 조회 실패', error);
                   setRecommendationErrorMessage(
@@ -607,6 +605,7 @@ setRecommendationItems(recommendationPage.content);
               onEditProfile={(name) => {
                 setEditUserName(name);
                 setProfileEditBackScreen('my');
+    setBenefitProfileBackScreen('benefit');
                 setCurrentScreen('profileEdit');
               }}
               onNavigate={(screen) => {
@@ -617,6 +616,11 @@ setRecommendationItems(recommendationPage.content);
                 if (screen === 'saved') {
                   setSelectedProgram(null);
                   setCurrentScreen('savedList');
+                }
+                if (screen === 'benefitProfile') {
+                  setBenefitProfileBackScreen('my');
+                  setBenefitProfileNextScreen('benefit');
+                  setCurrentScreen('benefitProfile');
                 }
                 if (screen === 'community') setCurrentScreen('myCommunity');
                 if (screen === 'notifications') {
@@ -704,6 +708,7 @@ setRecommendationItems(recommendationPage.content);
                   ? recommendationPreferenceId
                   : null
               }
+              childId={childProfile?.id ?? null}
               onBack={() => {
                 setCurrentScreen(programDetailBackScreen);
                 setSelectedProgram(null);
@@ -814,6 +819,7 @@ setRecommendationItems(recommendationPage.content);
 
           {currentScreen === 'aiReport' && (
             <AiReportScreen
+              childId={childProfile?.id ?? null}
               childInfo={{
                 name: childProfile?.name ?? '아이',
                 age: childProfile?.age ?? 0,
@@ -821,6 +827,8 @@ setRecommendationItems(recommendationPage.content);
               }}
               userName="정아름"
               onBack={() => setCurrentScreen('home')}
+              onSelectBenefit={() => setCurrentScreen('benefit')}
+              onSelectFreePrograms={() => setCurrentScreen('apply')}
               onSelectProgram={() => setCurrentScreen('recommend')}
             />
           )}
@@ -923,7 +931,20 @@ setRecommendationItems(recommendationPage.content);
   <HelpCenterScreen onBack={() => setCurrentScreen('my')} />
 )}
 
-{currentScreen === 'benefit' && (() => {
+{currentScreen === 'benefitProfile' && (
+            <BenefitProfileInputScreen
+              childId={childProfile?.id ?? null}
+              childName={childProfile?.name ?? '아이'}
+              onBack={() => setCurrentScreen(benefitProfileBackScreen)}
+              onSaved={() => {
+                const nextScreen = benefitProfileNextScreen;
+                setBenefitProfileNextScreen('benefit');
+                setCurrentScreen(nextScreen);
+              }}
+            />
+          )}
+
+          {currentScreen === 'benefit' && (() => {
   console.log('childProfile:', JSON.stringify(childProfile));
   return (
     <BenefitScreen
@@ -935,6 +956,11 @@ setRecommendationItems(recommendationPage.content);
       hasChildInfo={!!childProfile}
       onBack={() => setCurrentScreen('home')}
       onRegisterChild={() => setCurrentScreen('child')}
+      onBenefitProfileInput={() => {
+        setBenefitProfileBackScreen('benefit');
+        setBenefitProfileNextScreen('benefit');
+        setCurrentScreen('benefitProfile');
+      }}
       onNotificationClick={() => setCurrentScreen('notification')}
       onGoRecommendation={() => setCurrentScreen('recommendation')}
       onGoNotificationSettings={() =>
