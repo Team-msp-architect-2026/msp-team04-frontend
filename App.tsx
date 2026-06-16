@@ -223,6 +223,8 @@ useEffect(() => {
   const [profileEditBackScreen, setProfileEditBackScreen] =
     useState<Screen>('my');
 
+    const [profileImageUrl, setProfileImageUrl] = useState<string | undefined>(undefined);
+
   const [benefitProfileBackScreen, setBenefitProfileBackScreen] =
     useState<Screen>('benefit');
   const [benefitProfileNextScreen, setBenefitProfileNextScreen] =
@@ -595,6 +597,7 @@ const handleDevLogin = () => {
           {currentScreen === 'my' && (
             <MyPageScreen
               userName="정아름"
+              profileImageUrl={profileImageUrl}
               hasChildInfo={!!childProfile}
               childName={childProfile?.name}
               childAge={childProfile?.age}
@@ -788,9 +791,9 @@ const handleDevLogin = () => {
               userName={editUserName}
               onBack={() => setCurrentScreen(profileEditBackScreen)}
               onSave={(name, avatar) => {
-                console.log('저장:', name, avatar);
-                setCurrentScreen(profileEditBackScreen);
-              }}
+  if (avatar) setProfileImageUrl(avatar);
+  setCurrentScreen(profileEditBackScreen);
+}}
             />
           )}
 

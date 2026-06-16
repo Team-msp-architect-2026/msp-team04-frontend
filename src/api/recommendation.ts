@@ -26,7 +26,7 @@ export type OnlinePreferenceCode = 'ONLINE_OK' | 'OFFLINE_ONLY' | 'ANY';
 export type ClassTypeCode =
   | 'SMALL'
   | 'MEDIUM'
-  | 'INDIVIDUAL'
+  | 'ONE_ON_ONE'
   | 'ONLINE'
   | 'VISIT';
 
@@ -167,7 +167,7 @@ const onlinePreferenceMap: Record<string, OnlinePreferenceCode> = {
 const classTypeMap: Record<string, ClassTypeCode> = {
   '소규모 (5명 이하)': 'SMALL',
   '중규모 (6~10명)': 'MEDIUM',
-  '1:1 개인': 'INDIVIDUAL',
+  '1:1 개인': 'ONE_ON_ONE',
   온라인: 'ONLINE',
   '방문 수업': 'VISIT',
 };
@@ -195,21 +195,16 @@ export function buildPreferenceRequest(
   }
 
   return {
-  childId,
-  region: filterData.region,
-  monthlyBudget: requireMappedValue('예산', filterData.budget, monthlyBudgetMap),
-  transportType: requireMappedValue('이동수단', filterData.travelMode, transportTypeMap),
-  moveTime: requireMappedValue('이동시간', filterData.travelTime, moveTimeMap),
-  onlinePreference: requireMappedValue(
-    '온라인 선호도',
-    filterData.onlineOption,
-    onlinePreferenceMap,
-  ),
-  classType: requireMappedValue('수업 형태', filterData.classType, classTypeMap),
-
-  concerns: filterData.concerns,
-  subjectDetails: filterData.subjectDetails,
-};
+    childId,
+    region: filterData.region,
+    monthlyBudget: requireMappedValue('예산', filterData.budget, monthlyBudgetMap),
+    transportType: (transportTypeMap[filterData.travelMode] ?? 'WALK') as TransportTypeCode,
+    moveTime: (moveTimeMap[filterData.travelTime] ?? 'ANY') as MoveTimeCode,
+    onlinePreference: requireMappedValue('온라인 선호도', filterData.onlineOption, onlinePreferenceMap),
+    classType: requireMappedValue('수업 형태', filterData.classType, classTypeMap),
+    concerns: filterData.concerns,
+    subjectDetails: filterData.subjectDetails,
+  };
 }
 
 export const recommendationApi = {

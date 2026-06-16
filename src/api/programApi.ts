@@ -79,6 +79,29 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+export interface MapPinItem {
+  id: number;
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+  category: string;
+  status: 'RECRUITING' | 'CLOSED';
+  pinColor: 'BLUE' | 'GREEN' | 'ORANGE' | 'GRAY';
+  distanceKm?: number | null;
+}
+
+export const getNearbyMapPins = async (
+  lat: number,
+  lng: number,
+  radiusKm: number = 3,
+): Promise<ApiResponse<MapPinItem[]>> => {
+  const response = await client.get<ApiResponse<MapPinItem[]>>('/programs/map/nearby', {
+    params: { lat, lng, radiusKm },
+  });
+
+  return response.data;
+};
+
 export const getPrograms = async (
   params: ProgramListParams = {},
 ): Promise<ApiResponse<ProgramPage>> => {

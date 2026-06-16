@@ -144,6 +144,11 @@ const URGENCY_LABELS: Record<
   },
 };
 
+function formatStatCount(count: number): string {
+  if (count >= 10000) return `${(count / 10000).toFixed(1)}만개`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}천개`;
+  return `${count}개`;
+}
 function getCategoryLabel(category: string | null): string {
   const categoryMap: Record<string, string> = {
     EDUCATION: '교육',
@@ -665,8 +670,8 @@ export default function RecruitingScreen({
             {heroStats.map(stat => (
               <View key={stat.key} style={styles.heroStatCard}>
                 <Text style={[styles.heroStatValue, { color: stat.color }]}>
-                  {stat.value}
-                </Text>
+  {formatStatCount(stat.value)}
+</Text>
                 <Text style={styles.heroStatLabel}>{stat.label}</Text>
               </View>
             ))}
@@ -695,7 +700,7 @@ export default function RecruitingScreen({
                     ]}
                     numberOfLines={1}
                   >
-                    {filter.label}
+                    {filter.label}({filterCounts[filter.key].toLocaleString()})
                   </Text>
                 </TouchableOpacity>
               );
