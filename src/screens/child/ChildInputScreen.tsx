@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  Image, 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography } from '../../constants';
@@ -174,7 +175,7 @@ export default function ChildInputScreen({ onBack, onComplete }: ChildInputScree
         return (
           <View style={styles.stepContainer}>
             <View style={styles.stepHeader}>
-              <View style={[styles.iconCircle, { backgroundColor: colors.primary.default }]}>
+              <View style={styles.iconCircle}>
                 <Text style={styles.iconEmoji}>✨</Text>
               </View>
               <Text style={styles.stepTitle}>입력 완료!</Text>
@@ -185,10 +186,12 @@ export default function ChildInputScreen({ onBack, onComplete }: ChildInputScree
             <View style={styles.summaryCard}>
               <View style={styles.summaryHeader}>
                 <View style={styles.summaryAvatar}>
-                  <Text style={styles.summaryAvatarText}>
-                    {formData.childName.charAt(0)}
-                  </Text>
-                </View>
+  <Image
+    source={require('../../../assets/moment-splash.png')}
+    style={{ width: 56, height: 56, borderRadius: 28 }}
+    resizeMode="cover"
+  />
+</View>
                 <View>
                   <Text style={styles.summaryName}>{formData.childName}</Text>
                   <Text style={styles.summaryAge}>만 {formData.age}세</Text>
@@ -213,40 +216,40 @@ export default function ChildInputScreen({ onBack, onComplete }: ChildInputScree
   };
 
   return (
-    <SafeAreaView style={styles.root}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
-          <Text style={styles.backBtnText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>아이 정보 입력</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      {/* 프로그레스 바 */}
-      <View style={styles.stepIndicatorWrap}>
-        <StepIndicator total={TOTAL_STEPS} current={step - 1} />
+  <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    {/* 헤더 */}
+    <View style={styles.header}>
+      <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
+        <Text style={styles.backBtnText}>←</Text>
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>아이 정보 입력</Text>
+      <View style={{ width: 40 }} />
     </View>
 
-      {/* 본문 */}
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {renderStep()}
-      </ScrollView>
+    {/* 프로그레스 바 */}
+    <View style={styles.stepIndicatorWrap}>
+      <StepIndicator total={TOTAL_STEPS} current={step - 1} />
+    </View>
 
-      {/* 하단 버튼 */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.nextBtn, !canProceed() && styles.nextBtnDisabled]}
-          onPress={handleNext}
-          disabled={!canProceed()}
-        >
-          <Text style={styles.nextBtnText}>
-            {step === TOTAL_STEPS ? '✨ 등록하기' : '다음 →'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
-  );
+    {/* 본문 */}
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      {renderStep()}
+    </ScrollView>
+
+    {/* 하단 버튼 */}
+    <View style={styles.footer}>
+      <TouchableOpacity
+        style={[styles.nextBtn, !canProceed() && styles.nextBtnDisabled]}
+        onPress={handleNext}
+        disabled={!canProceed()}
+      >
+        <Text style={styles.nextBtnText}>
+          {step === TOTAL_STEPS ? '✨ 등록하기' : '다음 →'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </SafeAreaView>
+);
 }
 
 const styles = StyleSheet.create({
@@ -278,7 +281,7 @@ const styles = StyleSheet.create({
   progressFill: { height: 4, backgroundColor: colors.primary.default },
 
   // 스크롤
-  scrollContent: { padding: 24, paddingBottom: 120 },
+  scrollContent: { padding: 24, paddingBottom: 40 },
 
   // 스텝 공통
   stepContainer: { gap: 32 },
@@ -399,15 +402,11 @@ const styles = StyleSheet.create({
 
   // 하단 버튼
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
+  padding: 16,
+  backgroundColor: '#fff',
+  borderTopWidth: 1,
+  borderTopColor: '#F0F0F0',
+},
   nextBtn: {
     height: 56,
     borderRadius: 16,

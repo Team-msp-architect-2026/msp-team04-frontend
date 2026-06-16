@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Animated,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../constants';
-
+ 
 export interface FilterData {
   ageGroup: string;
   region: string;
@@ -21,7 +21,7 @@ export interface FilterData {
   concerns: string[];
   subjectDetails: string[];
 }
-
+ 
 interface RecommendScreenProps {
   onTabChange: (tab: string) => void;
   onComplete: (data: FilterData) => void;
@@ -34,16 +34,15 @@ interface RecommendScreenProps {
   };
   onEditChild?: () => void;
 }
-
+ 
 const SEOUL_DISTRICTS = [
   '강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구',
   '노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구',
   '성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구',
 ];
-
+ 
 const BUDGET_OPTIONS = ['무료', '0~10만원', '10~20만원', '20만원+', '무관'];
-const TRAVEL_TIME_OPTIONS = ['10분 이내', '10~20분', '20분+', '무관'];
-
+ 
 const CLASS_TYPE_OPTIONS = [
   { icon: '👥', label: '소규모 (5명 이하)', desc: '집중적인 개인 케어 가능' },
   { icon: '👨‍👩‍👧', label: '중규모 (6~10명)', desc: '또래 친구와 함께 성장' },
@@ -51,7 +50,7 @@ const CLASS_TYPE_OPTIONS = [
   { icon: '💻', label: '온라인', desc: '집에서 편하게' },
   { icon: '🏠', label: '방문 수업', desc: '선생님이 직접 방문' },
 ];
-
+ 
 const CONCERN_CATEGORIES = [
   { category: '학습/교육', items: ['기초학습 부족', '학습습관 필요', '특정 과목 보완 필요'] },
   { category: '돌봄/시간', items: ['맡길 곳 필요', '가족 돌봄 정보', '방학/휴일 돌봄'] },
@@ -59,17 +58,19 @@ const CONCERN_CATEGORIES = [
   { category: '생활/습관', items: ['게임 과몰입', '집중력 부족', '자기주도 학습 어려움'] },
   { category: '현실 고민', items: ['비용 부담', '선택 어려움'] },
 ];
-
+ 
 const SUBJECT_OPTIONS: Record<string, string[]> = {
   '학교 교과': ['국어', '수학', '영어', '사회', '과학'],
   '사고력/디지털': ['한자', '논술', '코딩'],
   '예체능': ['미술', '음악', '체육', '축구', '태권도', '수영', '댄스'],
 };
-
+ 
+const babyIcon = require('../../../assets/baby_icon_no_bg.png');
+ 
 // ── AI 배너 ──────────────────────────────────────────────────────────────
 function AIBanner({ childName, confidence }: { childName: string; confidence: number }) {
   const [displayed, setDisplayed] = useState(0);
-
+ 
   useEffect(() => {
     setDisplayed(0);
     const timer = setTimeout(() => {
@@ -83,7 +84,7 @@ function AIBanner({ childName, confidence }: { childName: string; confidence: nu
     }, 100);
     return () => clearTimeout(timer);
   }, [confidence]);
-
+ 
   return (
     <View style={banner.wrap}>
       <View style={banner.left}>
@@ -96,7 +97,7 @@ function AIBanner({ childName, confidence }: { childName: string; confidence: nu
     </View>
   );
 }
-
+ 
 const banner = StyleSheet.create({
   wrap: {
     backgroundColor: '#EBF8FF',
@@ -115,42 +116,41 @@ const banner = StyleSheet.create({
   badge: { backgroundColor: 'rgba(255,255,255,0.7)', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 20, minWidth: 52, alignItems: 'center' },
   badgeText: { fontSize: 13, fontWeight: '700', color: '#3182CE' },
 });
-
+ 
 // ── 메인 ─────────────────────────────────────────────────────────────────
 export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo, childInfo, onEditChild }: RecommendScreenProps) {
-  const TOTAL_STEPS = 7;
+  const TOTAL_STEPS = 6;
   const [step, setStep] = useState(1);
   const [filterData, setFilterData] = useState<FilterData>({
     ageGroup: '', region: '', budget: '', travelMode: '', travelTime: '',
     onlineOption: '', classType: '', concerns: [], subjectDetails: [],
   });
-
+ 
   useEffect(() => {
     if (childInfo?.ageGroup) {
       setFilterData(prev => ({ ...prev, ageGroup: childInfo.ageGroup.split(' ')[0] }));
     }
   }, [childInfo]);
-
-  const getConfidence = () => ({ 1: 10, 2: 32, 3: 54, 4: 66, 5: 78, 6: 88, 7: 95 }[step] ?? 10);
+ 
+  const getConfidence = () => ({ 1: 10, 2: 32, 3: 54, 4: 66, 5: 82, 6: 95 }[step] ?? 10);
   const childName = childInfo?.name ?? '아이';
-
+ 
   const canProceed = () => {
     switch (step) {
       case 1: return filterData.ageGroup !== '' || !!childInfo;
       case 2: return filterData.region !== '';
       case 3: return filterData.budget !== '';
-      case 4: return filterData.travelMode !== '' && filterData.travelTime !== '';
-      case 5: return filterData.onlineOption !== '';
-      case 6: return filterData.classType !== '';
-      case 7: return true;
+      case 4: return filterData.onlineOption !== '';
+      case 5: return filterData.classType !== '';
+      case 6: return true;
       default: return false;
     }
   };
-
+ 
   const handleNext = () => { if (step < TOTAL_STEPS) setStep(step + 1); else onComplete(filterData); };
   const handleBack = () => { if (step > 1) setStep(step - 1); };
   const handleHome = () => onTabChange('home');
-
+ 
   const toggleConcern = (concern: string) => {
     setFilterData(prev => {
       const newConcerns = prev.concerns.includes(concern)
@@ -159,7 +159,7 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
       return { ...prev, concerns: newConcerns };
     });
   };
-
+ 
   const toggleSubject = (subject: string) => {
     setFilterData(prev => ({
       ...prev,
@@ -168,16 +168,14 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
         : [...prev.subjectDetails, subject],
     }));
   };
-
+ 
   const showSubjectDetails = filterData.concerns.includes('특정 과목 보완 필요');
-
   const progressWidth = `${(step / TOTAL_STEPS) * 100}%`;
-
+ 
   return (
     <SafeAreaView style={s.root}>
       {/* 헤더 */}
       <View style={s.header}>
-        {/* 왼쪽: 1단계는 빈 공간, 2단계 이상은 뒤로가기 */}
         {step > 1 ? (
           <TouchableOpacity style={s.backBtn} onPress={handleBack}>
             <Text style={s.backBtnText}>←</Text>
@@ -185,24 +183,20 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
         ) : (
           <View style={{ width: 40 }} />
         )}
-
         <Text style={s.headerTitle}>맞춤 추천</Text>
-
-        {/* 오른쪽: 항상 X 버튼 */}
         <TouchableOpacity style={s.closeBtn} onPress={handleHome}>
           <Text style={s.closeBtnText}>✕</Text>
         </TouchableOpacity>
       </View>
-
+ 
       {/* 프로그레스 바 */}
       <View style={s.progressBg}>
         <View style={[s.progressFill, { width: progressWidth as any }]} />
       </View>
-
+ 
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        {/* AI 배너: 4단계부터 */}
-        {step >= 4 && <AIBanner childName={childName} confidence={getConfidence()} />}
-
+        {step >= 3 && <AIBanner childName={childName} confidence={getConfidence()} />}
+ 
         {/* 1단계: 아이 정보 확인 또는 연령대 선택 */}
         {step === 1 && (
           <View style={s.stepContainer}>
@@ -212,7 +206,9 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
                 <Text style={s.stepDesc}>정보를 확인하고 다음 단계로 이동해 주세요.</Text>
                 <View style={s.childCard}>
                   <View style={s.childCardLeft}>
-                    <View style={s.childAvatar}><Text style={{ fontSize: 28 }}>👶</Text></View>
+                    <View style={s.childAvatar}>
+                      <Image source={babyIcon} style={s.childAvatarImage} resizeMode="contain" />
+                    </View>
                     <View>
                       <Text style={s.childName}>{childInfo.name} <Text style={s.childAge}>· {childInfo.age}세</Text></Text>
                       <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
@@ -248,7 +244,7 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
             )}
           </View>
         )}
-
+ 
         {/* 2단계: 지역 선택 */}
         {step === 2 && (
           <View style={s.stepContainer}>
@@ -273,13 +269,12 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
             </View>
           </View>
         )}
-
+ 
         {/* 3단계: 예산 */}
         {step === 3 && (
           <View style={s.stepContainer}>
             <Text style={s.stepTitle}>희망하는 수업료 범위가 어떻게 돼요? 💰</Text>
             <Text style={s.stepDesc}>선택하신 범위 내에서 프로그램을 찾아드릴게요</Text>
-            <AIBanner childName={childName} confidence={getConfidence()} />
             {BUDGET_OPTIONS.map(option => {
               const selected = filterData.budget === option;
               return (
@@ -295,46 +290,9 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
             })}
           </View>
         )}
-
-        {/* 4단계: 이동수단 및 시간 */}
+ 
+        {/* 4단계: 온라인 옵션 */}
         {step === 4 && (
-          <View style={s.stepContainer}>
-            <Text style={s.stepTitle}>이동 수단과 시간은요? 🚶</Text>
-            <Text style={s.stepDesc}>접근성을 고려해 추천해 드릴게요</Text>
-            <Text style={s.sectionLabel}>🚗 이동 수단</Text>
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
-              {['도보', '차량'].map(mode => {
-                const selected = filterData.travelMode === mode;
-                return (
-                  <TouchableOpacity
-                    key={mode}
-                    style={[s.travelModeBtn, selected && s.travelModeBtnSelected, { flex: 1 }]}
-                    onPress={() => setFilterData({ ...filterData, travelMode: mode })}
-                  >
-                    <Text style={[s.travelModeBtnText, selected && s.travelModeBtnTextSelected]}>{mode}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={s.sectionLabel}>⏱ 이동 시간</Text>
-            {TRAVEL_TIME_OPTIONS.map(option => {
-              const selected = filterData.travelTime === option;
-              return (
-                <TouchableOpacity
-                  key={option}
-                  style={[s.optionBtn, selected && s.optionBtnSelected]}
-                  onPress={() => setFilterData({ ...filterData, travelTime: option })}
-                >
-                  <Text style={[s.optionBtnText, selected && s.optionBtnTextSelected]}>{option}</Text>
-                  {selected && <Text style={{ color: colors.primary.default }}>✓</Text>}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-
-        {/* 5단계: 온라인 옵션 */}
-        {step === 5 && (
           <View style={s.stepContainer}>
             <Text style={s.stepTitle}>온라인과 오프라인, 어느 쪽을 선호하세요?</Text>
             <Text style={s.stepDesc}>둘 다 괜찮다면 '상관없어요'를 선택해 주세요</Text>
@@ -357,9 +315,9 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
             })}
           </View>
         )}
-
-        {/* 6단계: 수업방식 */}
-        {step === 6 && (
+ 
+        {/* 5단계: 수업방식 */}
+        {step === 5 && (
           <View style={s.stepContainer}>
             <Text style={s.stepTitle}>수업 방식은요? 📚</Text>
             <Text style={s.stepDesc}>아이에게 맞는 수업 환경을 선택해주세요</Text>
@@ -382,9 +340,9 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
             })}
           </View>
         )}
-
-        {/* 7단계: 고민 선택 */}
-        {step === 7 && (
+ 
+        {/* 6단계: 고민 선택 */}
+        {step === 6 && (
           <View style={s.stepContainer}>
             <Text style={s.stepTitle}>어떤 고민이 있으세요?</Text>
             <Text style={s.stepDesc}>최대 3개까지 선택할 수 있어요</Text>
@@ -435,7 +393,7 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
           </View>
         )}
       </ScrollView>
-
+ 
       {/* 하단 버튼 */}
       <View style={s.footer}>
         <TouchableOpacity
@@ -451,10 +409,10 @@ export default function RecommendScreen({ onTabChange, onComplete, hasChildInfo,
     </SafeAreaView>
   );
 }
-
+ 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
-
+ 
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -469,20 +427,20 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A' },
   closeBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   closeBtnText: { fontSize: 18, color: '#888' },
-
+ 
   progressBg: { height: 4, backgroundColor: '#F0F0F0' },
   progressFill: { height: 4, backgroundColor: colors.primary.default },
-
-  scroll: { padding: 24, paddingBottom: 120 },
+ 
+  scroll: { padding: 24, paddingBottom: 160 },
   stepContainer: { gap: 12 },
   stepTitle: { fontSize: 20, fontWeight: '700', color: '#1A1A1A', marginBottom: 4 },
   stepDesc: { fontSize: 13, color: '#888', marginBottom: 8 },
   sectionLabel: { fontSize: 13, fontWeight: '600', color: '#1A1A1A', marginBottom: 8 },
-
-  // 아이 카드
+ 
   childCard: { backgroundColor: '#FFFBEB', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#FFE08A', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   childCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   childAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#FFF3CD', alignItems: 'center', justifyContent: 'center' },
+  childAvatarImage: { width: 44, height: 44 },
   childName: { fontSize: 17, fontWeight: '700', color: '#1A1A1A' },
   childAge: { fontSize: 13, fontWeight: '400', color: '#888' },
   stageBadge: { backgroundColor: '#FFF3CD', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
@@ -490,54 +448,42 @@ const s = StyleSheet.create({
   ageBadge: { backgroundColor: '#fff', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#E5E7EB' },
   ageBadgeText: { fontSize: 11, color: '#888' },
   editBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
-
-  // 공통 옵션 버튼
+ 
   optionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 52, borderRadius: 12, borderWidth: 1.5, borderColor: '#E5E7EB', paddingHorizontal: 16, backgroundColor: '#fff' },
   optionBtnSelected: { borderColor: colors.primary.default, backgroundColor: '#FFF9E6' },
   optionBtnText: { fontSize: 14, fontWeight: '500', color: '#1A1A1A' },
   optionBtnTextSelected: { color: colors.primary.default, fontWeight: '600' },
-
-  // 지역 그리드
+ 
   districtGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   districtBtn: { width: '30%', height: 44, borderRadius: 10, borderWidth: 1.5, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   districtBtnSelected: { borderColor: colors.primary.default, backgroundColor: colors.primary.default },
   districtBtnText: { fontSize: 11, fontWeight: '500', color: '#1A1A1A' },
   districtBtnTextSelected: { color: '#fff', fontWeight: '700' },
-
-  // 예산
+ 
   budgetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 16, borderWidth: 2, borderColor: '#F0F0F0', backgroundColor: '#F9F9F9', marginBottom: 8 },
   budgetBtnSelected: { borderColor: '#F9A825', backgroundColor: '#FFE082' },
   budgetBtnText: { fontSize: 14, fontWeight: '600', color: '#4A5568' },
   budgetBtnTextSelected: { color: '#7B5E00' },
-
-  // 이동수단
-  travelModeBtn: { height: 52, borderRadius: 12, borderWidth: 1.5, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
-  travelModeBtnSelected: { borderColor: colors.primary.default, backgroundColor: colors.primary.default },
-  travelModeBtnText: { fontSize: 14, fontWeight: '500', color: '#1A1A1A' },
-  travelModeBtnTextSelected: { color: '#fff', fontWeight: '700' },
-
-  // 수업방식
+ 
   classTypeBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 2, borderColor: '#F0F0F0', backgroundColor: '#F9F9F9', marginBottom: 8 },
   classTypeBtnSelected: { borderColor: '#F9A825', backgroundColor: '#FFE082' },
   classTypeBtnTitle: { fontSize: 14, fontWeight: '600', color: '#2D3748' },
   classTypeBtnTitleSelected: { color: '#7B5E00' },
   classTypeBtnDesc: { fontSize: 11, color: '#A0AEC0', marginTop: 2 },
-
-  // 고민 칩
+ 
   concernRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   concernChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#fff' },
   concernChipSelected: { borderColor: colors.primary.default, backgroundColor: colors.primary.default },
   concernChipDisabled: { opacity: 0.4 },
   concernChipText: { fontSize: 13, fontWeight: '500', color: '#1A1A1A' },
   concernChipTextSelected: { color: '#fff', fontWeight: '700' },
-
-  // 과목 박스
+ 
   subjectBox: { backgroundColor: '#F9F9F9', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', marginTop: 8 },
   subjectGroup: { fontSize: 10, fontWeight: '500', color: '#888', marginBottom: 4 },
-
-  // 하단 버튼
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+ 
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 52, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F0F0F0' },
   nextBtn: { height: 52, borderRadius: 12, backgroundColor: colors.primary.default, alignItems: 'center', justifyContent: 'center' },
   nextBtnDisabled: { backgroundColor: '#E5E7EB' },
   nextBtnText: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
 });
+ 

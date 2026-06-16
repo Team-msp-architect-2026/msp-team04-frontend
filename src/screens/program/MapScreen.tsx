@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,133 +7,55 @@ import {
   ScrollView,
   Modal,
   Pressable,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
+import * as Location from 'expo-location';
 import { colors } from '../../constants';
+import { getNearbyMapPins, MapPinItem } from '../../api/programApi';
 
 const KAKAO_JS_KEY = '260b293407a3946a42717dad31416426';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// fallback: 마포구 좌표 (GPS 권한 거부/시뮬레이터 대비)
+const FALLBACK_LAT = 37.5663;
+const FALLBACK_LNG = 126.9019;
 
-interface Program {
-  id: number;
-  title: string;
-  category: string;
-  distance: string;
-  distanceMin: number; // 정렬용 (분 단위)
-  price: string;
-  priceNum: number;    // 정렬용 (원 단위)
-  rating: number;
-  match: number;
-  emoji: string;
-  type: 'private' | 'public' | 'government';
-  isOpen: boolean;
-  lat: number;
-  lng: number;
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type SortKey = 'distance' | 'rating' | 'price';
 type PriceFilter = 'all' | 'free' | 'under10' | 'under15';
 type ViewMode = 'map' | 'list';
-
-interface ConditionChip {
-  label: string;
-  value: string;
-}
 
 interface MapScreenProps {
   onBack: () => void;
   onSelectProgram?: (id?: number) => void;
 }
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
-
-const NEARBY: Program[] = [
-  {
-    id: 1,
-    title: '창의력 쑥쑥 미술 놀이',
-    category: '미술',
-    distance: '도보 8분',
-    distanceMin: 8,
-    price: '월 9만원',
-    priceNum: 90000,
-    rating: 4.9,
-    match: 97,
-    emoji: '🎨',
-    type: 'private',
-    isOpen: true,
-    lat: 37.5012,
-    lng: 127.0396,
-  },
-  {
-    id: 2,
-    title: '오감 발달 음악 교실',
-    category: '음악',
-    distance: '도보 12분',
-    distanceMin: 12,
-    price: '월 11만원',
-    priceNum: 110000,
-    rating: 4.8,
-    match: 91,
-    emoji: '🎵',
-    type: 'public',
-    isOpen: true,
-    lat: 37.5025,
-    lng: 127.0410,
-  },
-  {
-    id: 3,
-    title: '한글 떼기 독서 클래스',
-    category: '독서',
-    distance: '차량 5분',
-    distanceMin: 5,
-    price: '월 8만원',
-    priceNum: 80000,
-    rating: 4.7,
-    match: 87,
-    emoji: '📚',
-    type: 'private',
-    isOpen: false,
-    lat: 37.4998,
-    lng: 127.0380,
-  },
-  {
-    id: 4,
-    title: '신나는 축구 교실',
-    category: '체육',
-    distance: '도보 15분',
-    distanceMin: 15,
-    price: '무료',
-    priceNum: 0,
-    rating: 4.6,
-    match: 80,
-    emoji: '⚽',
-    type: 'government',
-    isOpen: true,
-    lat: 37.5005,
-    lng: 127.0420,
-  },
-];
-
 const CATEGORIES = ['전체', '미술', '음악', '체육', '영어', '독서'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getPinColor(type: Program['type'], isOpen: boolean) {
-  if (!isOpen) return '#9CA3AF';
-  if (type === 'public') return '#3B82F6';
-  if (type === 'government') return '#10B981';
-  return '#F97316';
+function pinColorToHex(pinColor: MapPinItem['pinColor']) {
+  switch (pinColor) {
+    case 'BLUE': return '#3B82F6';
+    case 'ORANGE': return '#F97316';
+    case 'GREEN': return '#10B981';
+    default: return '#9CA3AF'; // GRAY
+  }
 }
 
-function buildKakaoMapHTML(programs: Program[]) {
-  const markersJS = programs.map(p => {
-    const color = getPinColor(p.type, p.isOpen);
+function buildKakaoMapHTML(programs: MapPinItem[], centerLat: number, centerLng: number) {
+  const validPins = programs.filter(p => p.latitude != null && p.longitude != null);
+
+  const markersJS = validPins.map(p => {
+    const color = pinColorToHex(p.pinColor);
+    const label = (p.category ?? '').replace(/'/g, "\\'");
     return `
       (function() {
-        var pos = new kakao.maps.LatLng(${p.lat}, ${p.lng});
+        var pos = new kakao.maps.LatLng(${p.latitude}, ${p.longitude});
         var el = document.createElement('div');
         el.style.cssText = [
           'background:${color}','color:#fff','padding:5px 10px',
@@ -141,7 +63,7 @@ function buildKakaoMapHTML(programs: Program[]) {
           'white-space:nowrap','box-shadow:0 2px 6px rgba(0,0,0,0.25)',
           'cursor:pointer','border:2px solid #fff',
         ].join(';');
-        el.innerText = '${p.category} ${p.price}';
+        el.innerText = '${label}';
         var overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1 });
         overlay.setMap(map);
         el.addEventListener('click', function() {
@@ -150,9 +72,6 @@ function buildKakaoMapHTML(programs: Program[]) {
       })();
     `;
   }).join('\n');
-
-  const centerLat = programs.reduce((s, p) => s + p.lat, 0) / programs.length;
-  const centerLng = programs.reduce((s, p) => s + p.lng, 0) / programs.length;
 
   return `
 <!DOCTYPE html><html><head>
@@ -165,7 +84,7 @@ function buildKakaoMapHTML(programs: Program[]) {
   <script>
     kakao.maps.load(function() {
       var map = new kakao.maps.Map(document.getElementById('map'), {
-        center: new kakao.maps.LatLng(${centerLat}, ${centerLng}), level: 4
+        center: new kakao.maps.LatLng(${centerLat}, ${centerLng}), level: 5
       });
       var dot = document.createElement('div');
       dot.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#3B82F6;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,0.25)';
@@ -178,63 +97,24 @@ function buildKakaoMapHTML(programs: Program[]) {
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-interface ProgramCardProps {
-  program: Program;
-  isSelected: boolean;
-  isLiked: boolean;
-  onPress: () => void;
-  onLike: () => void;
-  onDetail: () => void;
-}
-
-function ProgramCard({ program: p, isSelected, isLiked, onPress, onLike, onDetail }: ProgramCardProps) {
+function ProgramCard({ pin, onDetail }: { pin: MapPinItem; onDetail: () => void }) {
   return (
-    <TouchableOpacity
-      style={[s.card, isSelected && s.cardSelected]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      {/* 찜 버튼 */}
-      <TouchableOpacity style={s.likeBtn} onPress={onLike} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Ionicons
-          name={isLiked ? 'heart' : 'heart-outline'}
-          size={18}
-          color={isLiked ? '#F43F5E' : '#CBD5E0'}
-        />
-      </TouchableOpacity>
-
-      <View style={s.cardImage}>
-        <Text style={{ fontSize: 32 }}>{p.emoji}</Text>
-      </View>
-
+    <TouchableOpacity style={s.card} onPress={onDetail} activeOpacity={0.85}>
       <View style={s.cardContent}>
-        {/* 배지 행 */}
         <View style={s.cardTopRow}>
           <View style={s.categoryBadge}>
-            <Text style={s.categoryBadgeText}>{p.category}</Text>
+            <Text style={s.categoryBadgeText}>{pin.category}</Text>
           </View>
-          <View style={s.matchBadge}>
-            <Text style={s.matchBadgeText}>✦ {p.match}%</Text>
-          </View>
-          {!p.isOpen && (
+          {pin.status === 'CLOSED' && (
             <View style={s.closedBadge}>
               <Text style={s.closedBadgeText}>마감</Text>
             </View>
           )}
         </View>
-
-        <Text style={s.cardTitle} numberOfLines={1}>{p.title}</Text>
-        <Text style={s.cardDistance}>🚶 {p.distance}</Text>
-
-        <View style={s.cardBottom}>
-          <Text style={s.cardPrice}>{p.price}</Text>
-          <View style={s.ratingRow}>
-            <Text style={{ fontSize: 11, color: '#F9A825' }}>★</Text>
-            <Text style={s.ratingText}>{p.rating}</Text>
-          </View>
-        </View>
-
-        {/* 상세보기 버튼 */}
+        <Text style={s.cardTitle} numberOfLines={1}>{pin.name}</Text>
+        {pin.distanceKm != null && (
+          <Text style={s.cardDistance}>📍 {pin.distanceKm.toFixed(1)}km</Text>
+        )}
         <TouchableOpacity style={s.detailBtn} onPress={onDetail}>
           <Text style={s.detailBtnText}>상세보기</Text>
           <Ionicons name="arrow-forward" size={12} color="#F97316" />
@@ -273,7 +153,6 @@ function FilterModal({ visible, sortKey, priceFilter, onChangeSortKey, onChangeP
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={s.modalOverlay} onPress={onClose}>
         <Pressable style={s.modalSheet} onPress={() => {}}>
-          {/* 핸들 */}
           <View style={s.modalHandle} />
           <View style={s.modalHeader}>
             <Text style={s.modalTitle}>필터 / 정렬</Text>
@@ -282,7 +161,6 @@ function FilterModal({ visible, sortKey, priceFilter, onChangeSortKey, onChangeP
             </TouchableOpacity>
           </View>
 
-          {/* 정렬 */}
           <Text style={s.modalSection}>정렬 기준</Text>
           <View style={s.optionRow}>
             {SORT_OPTIONS.map(opt => (
@@ -298,7 +176,6 @@ function FilterModal({ visible, sortKey, priceFilter, onChangeSortKey, onChangeP
             ))}
           </View>
 
-          {/* 가격대 */}
           <Text style={s.modalSection}>가격대</Text>
           <View style={s.optionRow}>
             {PRICE_OPTIONS.map(opt => (
@@ -314,7 +191,6 @@ function FilterModal({ visible, sortKey, priceFilter, onChangeSortKey, onChangeP
             ))}
           </View>
 
-          {/* 버튼 */}
           <View style={s.modalFooter}>
             <TouchableOpacity style={s.resetBtn} onPress={onReset}>
               <Text style={s.resetBtnText}>초기화</Text>
@@ -350,36 +226,67 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('map');
   const [activeCategory, setActiveCategory] = useState('전체');
   const [selectedProgram, setSelectedProgram] = useState<number | null>(null);
-  const [likedPrograms, setLikedPrograms] = useState<Set<number>>(new Set());
   const [filterVisible, setFilterVisible] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('distance');
   const [priceFilter, setPriceFilter] = useState<PriceFilter>('all');
 
-  // 필터링 + 정렬
+  const [pins, setPins] = useState<MapPinItem[]>([]);
+  const [center, setCenter] = useState({ lat: FALLBACK_LAT, lng: FALLBACK_LNG });
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const fetchNearby = useCallback(async (lat: number, lng: number) => {
+    try {
+      setLoading(true);
+      setErrorMsg(null);
+      const res = await getNearbyMapPins(lat, lng, 3);
+      if (res.success) {
+        setPins(res.data);
+      } else {
+        setErrorMsg(res.message ?? '주변 프로그램을 불러오지 못했습니다');
+      }
+    } catch (e) {
+      setErrorMsg('주변 프로그램을 불러오지 못했습니다');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+
+        if (status !== 'granted') {
+          Alert.alert('위치 권한 필요', '위치 권한이 없어 기본 위치(마포구) 기준으로 표시합니다.');
+          setCenter({ lat: FALLBACK_LAT, lng: FALLBACK_LNG });
+          await fetchNearby(FALLBACK_LAT, FALLBACK_LNG);
+          return;
+        }
+
+        const location = await Location.getCurrentPositionAsync({});
+        const { latitude, longitude } = location.coords;
+        setCenter({ lat: latitude, lng: longitude });
+        await fetchNearby(latitude, longitude);
+      } catch (e) {
+        setCenter({ lat: FALLBACK_LAT, lng: FALLBACK_LNG });
+        await fetchNearby(FALLBACK_LAT, FALLBACK_LNG);
+      }
+    })();
+  }, [fetchNearby]);
+
   const filtered = useMemo(() => {
-    let list = NEARBY.filter(p => activeCategory === '전체' || p.category === activeCategory);
+    let list = pins.filter(p => p.latitude != null && p.longitude != null);
 
-    // 가격 필터
-    if (priceFilter === 'free')    list = list.filter(p => p.priceNum === 0);
-    if (priceFilter === 'under10') list = list.filter(p => p.priceNum <= 100000);
-    if (priceFilter === 'under15') list = list.filter(p => p.priceNum <= 150000);
+    if (activeCategory !== '전체') {
+      list = list.filter(p => p.category === activeCategory);
+    }
 
-    // 정렬
     return [...list].sort((a, b) => {
-      if (sortKey === 'distance') return a.distanceMin - b.distanceMin;
-      if (sortKey === 'rating')   return b.rating - a.rating;
-      if (sortKey === 'price')    return a.priceNum - b.priceNum;
+      if (sortKey === 'distance') return (a.distanceKm ?? 0) - (b.distanceKm ?? 0);
       return 0;
     });
-  }, [activeCategory, sortKey, priceFilter]);
-
-  const handleLike = (id: number) => {
-    setLikedPrograms(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
+  }, [pins, activeCategory, sortKey]);
 
   const handleDetail = (id: number) => {
     setSelectedProgram(id);
@@ -399,10 +306,12 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
     setPriceFilter('all');
   };
 
-  // 활성 필터 개수 (배지 표시용)
   const activeFilterCount = (sortKey !== 'distance' ? 1 : 0) + (priceFilter !== 'all' ? 1 : 0);
 
-  const mapHTML = useMemo(() => buildKakaoMapHTML(NEARBY), []);
+  const mapHTML = useMemo(
+    () => buildKakaoMapHTML(filtered, center.lat, center.lng),
+    [filtered, center]
+  );
 
   return (
     <SafeAreaView style={s.root}>
@@ -412,7 +321,6 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
           <Ionicons name="arrow-back" size={22} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={s.headerTitle}>지도 보기</Text>
-        {/* 필터 버튼 */}
         <TouchableOpacity style={s.filterIconBtn} onPress={() => setFilterVisible(true)}>
           <Ionicons name="options-outline" size={20} color="#1A1A1A" />
           {activeFilterCount > 0 && (
@@ -441,7 +349,6 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
         </TouchableOpacity>
       </View>
 
-
       {/* ── 카테고리 필터 ── */}
       <ScrollView
         horizontal
@@ -465,7 +372,6 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
       {/* ── 본문 ── */}
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* 지도 뷰일 때만 지도 표시 */}
         {viewMode === 'map' && (
           <>
             <View style={s.mapContainer}>
@@ -482,11 +388,10 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
                 allowFileAccessFromFileURLs
               />
               <View style={s.nearbyCount}>
-                <Text style={s.nearbyCountText}>주변 {NEARBY.length}개 프로그램</Text>
+                <Text style={s.nearbyCountText}>주변 {filtered.length}개 프로그램</Text>
               </View>
             </View>
 
-            {/* 범례 */}
             <View style={s.legend}>
               {[
                 { color: '#3B82F6', label: '공공' },
@@ -503,7 +408,6 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
           </>
         )}
 
-        {/* 리스트 제목 + 결과 수 */}
         <View style={s.listTitleRow}>
           <Text style={s.listTitle}>
             {viewMode === 'map' ? '내 주변 프로그램' : '전체 프로그램'}
@@ -511,19 +415,22 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
           <Text style={s.listCount}>{filtered.length}개</Text>
         </View>
 
-        {/* 빈 상태 or 카드 목록 */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <View style={{ paddingVertical: 48, alignItems: 'center' }}>
+            <ActivityIndicator color="#F9A825" />
+          </View>
+        ) : errorMsg ? (
+          <View style={s.emptyContainer}>
+            <Text style={s.emptyTitle}>{errorMsg}</Text>
+          </View>
+        ) : filtered.length === 0 ? (
           <EmptyState onReset={resetFilters} />
         ) : (
           <View style={s.list}>
             {filtered.map(p => (
               <ProgramCard
                 key={p.id}
-                program={p}
-                isSelected={selectedProgram === p.id}
-                isLiked={likedPrograms.has(p.id)}
-                onPress={() => setSelectedProgram(p.id)}
-                onLike={() => handleLike(p.id)}
+                pin={p}
                 onDetail={() => handleDetail(p.id)}
               />
             ))}
@@ -531,7 +438,6 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
         )}
       </ScrollView>
 
-      {/* ── 필터 모달 ── */}
       <FilterModal
         visible={filterVisible}
         sortKey={sortKey}
@@ -550,7 +456,6 @@ export default function MapScreen({ onBack, onSelectProgram}: MapScreenProps) {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
 
-  // 헤더
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     height: 56, paddingHorizontal: 16,
@@ -566,7 +471,6 @@ const s = StyleSheet.create({
   },
   filterBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
 
-  // 뷰 전환 토글
   viewToggleRow: {
     flexDirection: 'row', margin: 12, marginBottom: 0,
     backgroundColor: '#F3F4F6', borderRadius: 12, padding: 3,
@@ -579,18 +483,6 @@ const s = StyleSheet.create({
   viewToggleText: { fontSize: 13, fontWeight: '600', color: '#718096' },
   viewToggleTextActive: { color: '#7B5E00' },
 
-  // 조건 요약 칩
-  chipScroll: { flexGrow: 0, flexShrink: 0, maxHeight: 44, marginTop: 10 },
-  chipContent: { paddingHorizontal: 16, gap: 8, alignItems: 'center' },
-  conditionChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#FFF9E6', paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1, borderColor: '#FFE082',
-  },
-  conditionChipLabel: { fontSize: 11, color: '#9E7A00' },
-  conditionChipValue: { fontSize: 11, fontWeight: '700', color: '#7B5E00' },
-
-  // 카테고리
   categoryScroll: { flexGrow: 0, flexShrink: 0, height: 52 },
   categoryContent: { paddingHorizontal: 16, paddingVertical: 8, gap: 8, alignItems: 'center' },
   categoryBtn: {
@@ -603,7 +495,6 @@ const s = StyleSheet.create({
 
   scroll: { padding: 16, paddingBottom: 40 },
 
-  // 지도
   mapContainer: {
     height: 280, borderRadius: 16, overflow: 'hidden',
     marginBottom: 10, position: 'relative',
@@ -617,52 +508,31 @@ const s = StyleSheet.create({
   },
   nearbyCountText: { fontSize: 11, fontWeight: '700', color: '#2D3748' },
 
-  // 범례
   legend: { flexDirection: 'row', gap: 12, marginBottom: 16, paddingHorizontal: 4 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 11, color: '#718096' },
 
-  // 리스트 제목
   listTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   listTitle: { fontSize: 14, fontWeight: '700', color: '#1A1A1A' },
   listCount: { fontSize: 12, color: '#9CA3AF' },
   list: { gap: 10 },
 
-  // 카드
   card: {
     flexDirection: 'row', gap: 12, backgroundColor: '#fff', borderRadius: 16,
     padding: 14, borderWidth: 1, borderColor: '#F0F0F0',
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
     position: 'relative',
   },
-  cardSelected: { borderColor: '#FFE082', shadowColor: '#F9A825', shadowOpacity: 0.2 },
-  cardImage: {
-    width: 64, height: 64, borderRadius: 12, backgroundColor: '#FFF9E6',
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
   cardContent: { flex: 1, gap: 4 },
   cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   categoryBadge: { backgroundColor: '#FFF3CD', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
   categoryBadgeText: { fontSize: 10, fontWeight: '700', color: '#F9A825' },
-  matchBadge: {
-    backgroundColor: '#FFFBEB', paddingHorizontal: 8, paddingVertical: 2,
-    borderRadius: 20, borderWidth: 1, borderColor: '#FFE082',
-  },
-  matchBadgeText: { fontSize: 10, fontWeight: '700', color: '#b8860b' },
   closedBadge: { backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
   closedBadgeText: { fontSize: 10, fontWeight: '700', color: '#9CA3AF' },
   cardTitle: { fontSize: 14, fontWeight: '700', color: '#1A202C' },
   cardDistance: { fontSize: 11, color: '#718096' },
-  cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
-  cardPrice: { fontSize: 13, fontWeight: '700', color: '#1A202C' },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  ratingText: { fontSize: 11, fontWeight: '600', color: '#2D3748' },
 
-  // 찜 버튼
-  likeBtn: { position: 'absolute', top: 12, right: 12 },
-
-  // 상세보기 버튼
   detailBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     alignSelf: 'flex-start', marginTop: 4,
@@ -672,7 +542,6 @@ const s = StyleSheet.create({
   },
   detailBtnText: { fontSize: 11, fontWeight: '700', color: '#F97316' },
 
-  // 필터 모달
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
@@ -705,7 +574,6 @@ const s = StyleSheet.create({
   },
   applyBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 
-  // 빈 상태
   emptyContainer: { alignItems: 'center', paddingVertical: 48, gap: 8 },
   emptyEmoji: { fontSize: 40, marginBottom: 4 },
   emptyTitle: { fontSize: 15, fontWeight: '700', color: '#2D3748' },
